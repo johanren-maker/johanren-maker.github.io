@@ -689,6 +689,16 @@ init();
 
 // ═══════════════ PAGE NAV ═══════════════
 function showPage(id,btn){
+  // Role guard — skip if not logged in yet
+  if(currentUser){
+    const allowed={
+      admin:['data-entry','billing','compare','dashboard','invoices','admin'],
+      entry:['data-entry','compare','dashboard'],
+      billing:['data-entry','billing','compare','dashboard','invoices'],
+      readonly:['data-entry','compare','dashboard']
+    }[currentUser.role]||[];
+    if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
@@ -1759,6 +1769,7 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
 // ═══════════════ ADMIN ═══════════════
 function renderAdminStatus(){
   renderPropDisplayGrid();
+  setTimeout(renderUMTable, 50);
   const keys=Object.keys(months).sort();
   const body=document.getElementById('adminStatusBody');
   if(!body)return;
@@ -2018,20 +2029,7 @@ Click OK to sign out.`))return;
   doLogout();
 }
 
-// ── Guard showPage for role ──
-const _origShowPage=showPage;
-function showPage(id,btn){
-  if(currentUser){
-    const allowed={
-      admin:['data-entry','billing','compare','dashboard','invoices','admin'],
-      entry:['data-entry','compare','dashboard'],
-      billing:['data-entry','billing','compare','dashboard','invoices'],
-      readonly:['data-entry','compare','dashboard']
-    }[currentUser.role]||[];
-    if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
-  }
-  _origShowPage(id,btn);
-}
+// Role guard merged into showPage above
 
 // ── User Management ──
 async function renderUMTable(){
@@ -2086,12 +2084,7 @@ async function deleteUser(username){
   setTimeout(renderUMTable,200);
 }
 
-// ── Override renderAdminStatus to also refresh user table ──
-const _origRenderAdmin=renderAdminStatus;
-function renderAdminStatus(){
-  _origRenderAdmin();
-  renderUMTable();
-}
+// renderUMTable is called from renderAdminStatus directly
 
 </script>
 
