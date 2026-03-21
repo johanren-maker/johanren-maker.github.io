@@ -8,6 +8,388 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+
+// ══════════════════════════════════════════
+// BILLING TAB SWITCHER
+// ══════════════════════════════════════════
+function switchBillingTab(tab){
+  const bDiv=document.getElementById('billingContent');
+  const cDiv=document.getElementById('compareContent');
+  const bBtn=document.getElementById('bTabBilling');
+  const cBtn=document.getElementById('bTabCompare');
+  if(tab==='billing'){
+    bDiv.style.display=''; cDiv.style.display='none';
+    if(bBtn){bBtn.classList.add('tw');cBtn.classList.remove('tw');}
+    renderBillingPage();
+  } else {
+    bDiv.style.display='none'; cDiv.style.display='';
+    if(cBtn){cBtn.classList.add('tw');bBtn.classList.remove('tw');}
+    renderComparePage();
+  }
+}
+
+// ══════════════════════════════════════════
+// UNIT INFO POPUP
+// ══════════════════════════════════════════
+function showUnitInfo(unitNum, e){
+  e.stopPropagation();
+  const u=getUnitOwner(unitNum);
+  const existing=document.getElementById('unitInfoPopup');
+  if(existing) existing.remove();
+  const popup=document.createElement('div');
+  popup.id='unitInfoPopup';
+  popup.style.cssText='position:fixed;z-index:600;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:240px;max-width:320px;font-family:var(--sans)';
+  if(!u){
+    popup.innerHTML=`<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.5rem">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:.5rem">Unit ${unitNum}</div>
+      No owner data on file.
+      <div style="margin-top:.75rem"><button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.3rem .75rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Add Owner</button></div>
+    </div>`;
+  } else {
+    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
+    const p2=[u.first2,u.last2].filter(Boolean).join(' ');
+    popup.innerHTML=`
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum} — Owner Info</div>
+      <div style="margin-bottom:.65rem">
+        <div style="font-size:.65rem;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 1</div>
+        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p1}</div>
+        ${u.email?`<div style="font-size:.74rem;color:var(--muted)">${u.email}</div>`:''}
+        ${u.phone?`<div style="font-size:.74rem;color:var(--muted)">${u.phone}</div>`:''}
+      </div>
+      ${p2?`<div style="margin-bottom:.65rem">
+        <div style="font-size:.65rem;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 2</div>
+        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p2}</div>
+        ${u.email2?`<div style="font-size:.74rem;color:var(--muted)">${u.email2}</div>`:''}
+        ${u.phone2?`<div style="font-size:.74rem;color:var(--muted)">${u.phone2}</div>`:''}
+      </div>`:''}
+      ${u.notes?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem">${u.notes}</div>`:''}
+      <div style="margin-top:.75rem;display:flex;gap:.5rem">
+        <button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
+        <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer;font-weight:600">Close</button>
+      </div>`;
+  }
+  const rect=e.target.getBoundingClientRect();
+  popup.style.top=(rect.bottom+8)+'px';
+  popup.style.left=Math.min(rect.left, window.innerWidth-340)+'px';
+  document.body.appendChild(popup);
+  setTimeout(()=>{
+    const close=ev=>{if(!popup.contains(ev.target)){popup.remove();document.removeEventListener('click',close);}};
+    document.addEventListener('click',close);
+  },100);
+}
+
+function goToUnitsPage(unitNum){
+  const existing=document.getElementById('unitInfoPopup');
+  if(existing) existing.remove();
+  const btn=document.querySelector('#mainNav .nav-btn[onclick*="units"]');
+  showPage('units',btn);
+  setTimeout(()=>{
+    if(!editUnit(unitNum)){
+      document.getElementById('uoUnit').value=unitNum;
+      document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
+    }
+  },100);
+}
+
+// ══════════════════════════════════════════
+// UNIT MANAGEMENT FUNCTIONS
+// ══════════════════════════════════════════
+function saveUnit(){
+  const unitNum=parseInt(document.getElementById('uoUnit').value);
+  if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
+  const u={
+    unit:unitNum,
+    first:document.getElementById('uoFirst').value.trim(),
+    last:document.getElementById('uoLast').value.trim(),
+    email:document.getElementById('uoEmail').value.trim(),
+    phone:document.getElementById('uoPhone').value.trim(),
+    first2:document.getElementById('uoFirst2')?.value.trim()||'',
+    last2:document.getElementById('uoLast2')?.value.trim()||'',
+    email2:document.getElementById('uoEmail2')?.value.trim()||'',
+    phone2:document.getElementById('uoPhone2')?.value.trim()||'',
+    notes:document.getElementById('uoNotes').value.trim()
+  };
+  units[String(unitNum)]=u;
+  dbSaveUnit(u);
+  renderUnitsTable();
+  clearUnitForm();
+  showToast('Unit '+unitNum+' saved');
+  editingUnit=null;
+}
+
+function editUnit(unitNum){
+  const u=units[String(unitNum)];
+  if(!u)return false;
+  editingUnit=unitNum;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+  set('uoUnit',u.unit);set('uoFirst',u.first);set('uoLast',u.last);
+  set('uoEmail',u.email);set('uoPhone',u.phone);
+  set('uoFirst2',u.first2);set('uoLast2',u.last2);
+  set('uoEmail2',u.email2);set('uoPhone2',u.phone2);
+  set('uoNotes',u.notes);
+  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
+  document.getElementById('uoSaveBtn').textContent='Update Unit';
+  document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
+  return true;
+}
+
+function removeUnit(unitNum){
+  if(!confirm('Remove owner data for Unit '+unitNum+'?'))return;
+  delete units[String(unitNum)];
+  dbDeleteUnit(unitNum);
+  renderUnitsTable();
+  showToast('Unit '+unitNum+' removed','#C55A11');
+}
+
+function clearUnitForm(){
+  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoNotes'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.value='';
+  });
+  document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
+  document.getElementById('uoSaveBtn').textContent='Save Unit';
+  editingUnit=null;
+}
+
+function renderUnitsTable(){
+  const tbody=document.getElementById('unitsBody');
+  if(!tbody)return;
+  const search=(document.getElementById('unitSearch')?.value||'').toLowerCase();
+  const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
+  const filtered=search?sorted.filter(u=>
+    String(u.unit).includes(search)||
+    (u.first||'').toLowerCase().includes(search)||
+    (u.last||'').toLowerCase().includes(search)||
+    (u.email||'').toLowerCase().includes(search)||
+    (u.first2||'').toLowerCase().includes(search)||
+    (u.last2||'').toLowerCase().includes(search)||
+    (u.email2||'').toLowerCase().includes(search)
+  ):sorted;
+  if(!filtered.length){
+    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=filtered.map(u=>{
+    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
+    const p2=[u.first2,u.last2].filter(Boolean).join(' ')||'';
+    return `<tr>
+      <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
+      <td><div style="font-weight:600">${p1}</div>${u.phone?`<div style="font-size:.7rem;color:var(--muted)">${u.phone}</div>`:''}</td>
+      <td style="font-size:.76rem;font-family:var(--mono)">${u.email||'—'}</td>
+      <td style="font-size:.74rem;color:var(--muted)">${u.phone||'—'}</td>
+      <td>${p2?`<div style="font-weight:600">${p2}</div>${u.phone2?`<div style="font-size:.7rem;color:var(--muted)">${u.phone2}</div>`:''}`:'<span style="color:var(--muted);font-size:.74rem">—</span>'}</td>
+      <td style="font-size:.76rem;font-family:var(--mono)">${u.email2||''}</td>
+      <td style="font-size:.74rem;color:var(--muted)">${u.notes||''}</td>
+      <td style="display:flex;gap:.4rem">
+        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
+        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function exportUnitsExcel(){
+  const wb=XLSX.utils.book_new();
+  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
+  const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
+    u.unit,u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
+    u.email||'',u.phone||'',u.first2||'',u.last2||'',u.email2||'',u.phone2||'',u.notes||''
+  ]);
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=[8,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
+  XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast('Unit directory exported');
+}
+
+// ══════════════════════════════════════════
+// INVOICE AUTO-POPULATE
+// ══════════════════════════════════════════
+function onInvUnitChange(){
+  const unitNum=parseInt(document.getElementById('invUnit')?.value);
+  if(isNaN(unitNum))return;
+  const owner=getUnitOwner(unitNum);
+  if(owner){
+    const nameEl=document.getElementById('invOwnerName');
+    const emailEl=document.getElementById('invOwnerEmail');
+    const email2El=document.getElementById('invOwnerEmail2');
+    if(nameEl) nameEl.value=[owner.first,owner.last].filter(Boolean).join(' ')||'';
+    if(emailEl) emailEl.value=owner.email||'';
+    if(email2El) email2El.value=owner.email2||'';
+  }
+}
+
+// ══════════════════════════════════════════
+// EMAIL INVOICE
+// ══════════════════════════════════════════
+function emailInvoice(){
+  if(!previewKey||!previewUnit){showToast('No invoice loaded','#C55A11');return;}
+  const d=months[previewKey];
+  const owner=getUnitOwner(previewUnit);
+  const email1=document.getElementById('invOwnerEmail')?.value||owner?.email||'';
+  const email2=document.getElementById('invOwnerEmail2')?.value||owner?.email2||'';
+  const emails=[email1,email2].filter(Boolean);
+  if(!emails.length){showToast('No email address on file for this unit','#C55A11');return;}
+  const {wUsage,eUsage,wCharge,eCharge,total,dueDate,fmtDate,invNo,ownerName}=invData(previewKey,previewUnit);
+  const complexName=ps('complex')||'Utility Management';
+  const subject='Utility Invoice '+invNo+' — Unit '+previewUnit+' — '+d.label;
+  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+wUsage.toFixed(4)+' kl @ R'+d.waterRate+'/kl = R'+wCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nElectricity: '+eUsage.toFixed(0)+' kWh @ R'+d.elecRate+'/kWh = R'+eCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nTotal Due: R'+total.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
+  window.open('mailto:'+emails.join(',')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
+  showToast('Email client opened for '+emails.join(', '));
+}
+
+// ══════════════════════════════════════════
+// CLOUD DB CONFIG UI
+// ══════════════════════════════════════════
+function toggleCloudEdit(){
+  const edit=document.getElementById('cloudEditMode');
+  const view=document.getElementById('cloudViewMode');
+  const btn=document.getElementById('cloudEditBtn');
+  if(edit.style.display==='none'){
+    document.getElementById('sbUrlInput').value=SB_URL||'';
+    document.getElementById('sbKeyInput').value=SB_KEY||'';
+    edit.style.display='block'; view.style.display='none';
+    btn.textContent='Cancel';
+  } else { cancelCloudEdit(); }
+}
+function cancelCloudEdit(){
+  document.getElementById('cloudEditMode').style.display='none';
+  document.getElementById('cloudViewMode').style.display='block';
+  document.getElementById('cloudEditBtn').textContent=SB_URL?'Edit':'Configure';
+}
+async function saveCloudConfig(){
+  const url=(document.getElementById('sbUrlInput').value||'').trim().replace(/\/$/,'');
+  const key=(document.getElementById('sbKeyInput').value||'').trim();
+  if(!url||!key){showToast('Enter both URL and key','#C55A11');return;}
+  if(!url.startsWith('https://')){showToast('URL must start with https://','#C55A11');return;}
+  document.getElementById('cloudDbStatus').textContent='Testing connection...';
+  SB_URL=url; SB_KEY=key;
+  const ok=await checkSupabase();
+  if(!ok){
+    SB_URL=''; SB_KEY='';
+    document.getElementById('cloudDbStatus').textContent='Connection failed — check your URL and key';
+    document.getElementById('cloudDbStatus').style.color='var(--red)';
+    showToast('Connection failed — check credentials','#C00000');
+    return;
+  }
+  await saveCloudConfigToDB(url,key);
+  setDBStatus(true);
+  cancelCloudEdit();
+  renderCloudDisplay();
+  showToast('Connected to Supabase!');
+  if(Object.keys(months).length){
+    const syncNow=confirm('Connection successful!\n\nSync your local data to Supabase now?');
+    if(syncNow) await syncLocalToCloud();
+  }
+}
+async function testCloudConnection(){
+  if(!SB_URL||!SB_KEY){showToast('No credentials configured yet','#C55A11');return;}
+  document.getElementById('cloudDbStatus').textContent='Testing...';
+  const ok=await checkSupabase();
+  setDBStatus(ok);
+  renderCloudDisplay();
+  showToast(ok?'Connection OK':'Connection failed',ok?'var(--green)':'#C00000');
+}
+async function clearCloudConfig(){
+  if(!confirm('Disconnect from Supabase? Local IndexedDB data will be kept.'))return;
+  SB_URL=''; SB_KEY='';
+  await deleteCloudConfigFromDB();
+  dbOnline=false;
+  setDBStatus(false);
+  cancelCloudEdit();
+  renderCloudDisplay();
+  showToast('Disconnected from Supabase','#C55A11');
+}
+function renderCloudDisplay(){
+  const grid=document.getElementById('cloudDisplayGrid');
+  const status=document.getElementById('cloudDbStatus');
+  if(!grid||!status)return;
+  if(!SB_URL||!SB_KEY){
+    grid.innerHTML='<span style="color:var(--muted)">Not configured. Click Configure to connect.</span>';
+    status.textContent='Not configured'; status.style.color='var(--muted)';
+    document.getElementById('cloudEditBtn').textContent='Configure';
+    return;
+  }
+  const maskedKey=SB_KEY.substring(0,12)+'...'+SB_KEY.slice(-6);
+  grid.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .9rem">
+    <div><div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.15rem">Project URL</div>
+      <div style="font-family:var(--mono);font-size:.78rem;word-break:break-all">${SB_URL}</div></div>
+    <div><div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.15rem">Anon Key</div>
+      <div style="font-family:var(--mono);font-size:.78rem;color:var(--muted)">${maskedKey}</div></div>
+  </div>`;
+  status.textContent=dbOnline?'Connected — syncing to cloud':'Configured (offline)';
+  status.style.color=dbOnline?'var(--green2)':'var(--amber)';
+  document.getElementById('cloudEditBtn').textContent='Edit';
+}
+async function syncLocalToCloud(){
+  showToast('Syncing to cloud...','var(--blue)');
+  let synced=0;
+  for(const key of Object.keys(months)){ try{ await dbSave(key); synced++; }catch(e){} }
+  try{ await savePropToDB(); }catch(e){}
+  for(const u of Object.values(units)){ try{ await dbSaveUnit(u); }catch(e){} }
+  const idbUsers=await new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction('users','readonly').objectStore('users').getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+  for(const u of idbUsers){ try{ await dbSaveUser(u); }catch(e){} }
+  showToast('Synced '+synced+' months to cloud');
+}
+
+// ══════════════════════════════════════════
+// EMERGENCY LOGIN RESET
+// ══════════════════════════════════════════
+async function emergencyReset(){
+  if(!confirm('Reset admin password back to "admin"?\n\nAll other accounts will be kept.\n\nContinue?'))return;
+  await seedDefaultAdmin();
+  if(db){ try{ db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN); }catch(e){} }
+  document.getElementById('authUser').value='admin';
+  document.getElementById('authPass').value='admin';
+  document.getElementById('authError').style.display='none';
+  showToast('Admin reset — password is now: admin');
+}
+
+// ══════════════════════════════════════════
+// MOBILE NAV ROLE APPLY + RESIZE
+// ══════════════════════════════════════════
+function applyMobileNavRoles(){
+  if(!currentUser)return;
+  const allowed={
+    admin:['data-entry','units','billing','dashboard','invoices','admin'],
+    entry:['data-entry','units','billing','dashboard'],
+    billing:['data-entry','units','billing','dashboard','invoices'],
+    readonly:['data-entry','units','billing','dashboard']
+  }[currentUser.role]||[];
+  document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
+    const page=btn.getAttribute('data-page');
+    btn.style.display=allowed.includes(page)?'':'none';
+  });
+}
+function isMobile(){ return window.innerWidth<=768; }
+function showMobileNav(){
+  const nav=document.getElementById('mobileNavBar');
+  if(!nav)return;
+  nav.style.display=isMobile()?'flex':'none';
+}
+window.addEventListener('resize',showMobileNav);
+showMobileNav();
+function syncMobileNav(id){
+  document.querySelectorAll('.mob-nav-btn').forEach(b=>{
+    b.classList.toggle('active',b.getAttribute('data-page')===id);
+  });
+}
+function mobNav(id,btn){
+  if(id==='compare') id='billing';
+  document.querySelectorAll('.mob-nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const deskBtn=document.querySelector(`#mainNav .nav-btn[onclick*="${id}"]`);
+  showPage(id,deskBtn||btn);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+
+</script>
 <style>
 :root{
   --navy:#1F3864;--blue:#2E75B6;--sky:#D6E4F0;--sky2:#EBF3FA;
@@ -716,6 +1098,52 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     <div id="adminStatusBody"><p style="font-size:.78rem;color:var(--muted)">Loading...</p></div>
   </div>
 
+  <div class="section-hdr">Cloud Database (Supabase)</div>
+  <div class="admin-card" style="max-width:700px" id="cloudDbCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+      <div>
+        <h3 style="margin-bottom:.2rem">Supabase Connection</h3>
+        <div id="cloudDbStatus" style="font-size:.74rem;color:var(--muted)">Not configured</div>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <button id="cloudEditBtn" onclick="toggleCloudEdit()" class="btn-ghost" style="font-size:.72rem;padding:.32rem .85rem">Configure</button>
+        <button onclick="testCloudConnection()" class="btn-ghost" style="font-size:.72rem;padding:.32rem .85rem">Test Connection</button>
+      </div>
+    </div>
+
+    <!-- View mode -->
+    <div id="cloudViewMode">
+      <div id="cloudDisplayGrid" style="font-size:.8rem;color:var(--muted)">Enter your Supabase credentials to enable cloud sync.</div>
+    </div>
+
+    <!-- Edit mode -->
+    <div id="cloudEditMode" style="display:none">
+      <div style="background:var(--sky2);border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <div style="font-size:.7rem;color:var(--navy);font-weight:600;margin-bottom:.75rem">
+          Find these in your Supabase project → Settings → API
+        </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:.75rem">
+          <div>
+            <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);display:block;margin-bottom:.25rem">Project URL</label>
+            <input type="text" id="sbUrlInput" placeholder="https://xxxxxxxxxxxx.supabase.co"
+              style="width:100%;padding:.44rem .7rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.82rem;background:#fff">
+          </div>
+          <div>
+            <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);display:block;margin-bottom:.25rem">Anon / Public Key</label>
+            <input type="password" id="sbKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              style="width:100%;padding:.44rem .7rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.78rem;background:#fff">
+            <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">Stored locally in your browser only — never sent to GitHub or anywhere else.</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.65rem;flex-wrap:wrap">
+        <button class="btn-exp" onclick="saveCloudConfig()">Save & Connect</button>
+        <button class="btn-ghost" onclick="cancelCloudEdit()">Cancel</button>
+        <button class="btn-danger" onclick="clearCloudConfig()" style="margin-left:auto">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
   <div class="section-hdr">User Management</div>
   <div class="admin-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
@@ -811,7 +1239,37 @@ const MNAMES=['January','February','March','April','May','June','July','August',
 const months={};
 let activeKey=null, activeType='water', charts={};
 
-// ═══════════════ INDEXEDDB ═══════════════
+// ═══════════════ SUPABASE CONFIG ═══════════════
+// Credentials are stored in IndexedDB via the Admin panel — never hardcoded
+let SB_URL = '';
+let SB_KEY = '';
+
+// ── Core Supabase fetch helper ──
+async function sbFetch(table, method='GET', body=null, params=''){
+  const url=`${SB_URL}/rest/v1/${table}${params}`;
+  const headers={
+    'apikey': SB_KEY,
+    'Authorization': `Bearer ${SB_KEY}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if(method==='POST'||method==='PUT'||method==='PATCH')
+    headers['Prefer']='resolution=merge-duplicates,return=minimal';
+
+  const opts={method, headers};
+  if(body) opts.body=JSON.stringify(body);
+  const res=await fetch(url,opts);
+  if(!res.ok){
+    const err=await res.text();
+    throw new Error(`Supabase ${method} ${table}: ${res.status} ${err}`);
+  }
+  if(res.status===204||res.headers.get('content-length')==='0') return null;
+  return res.json();
+}
+
+// ── DB status tracking ──
+let dbOnline=false;
+// Keep IndexedDB as offline fallback
 const DB_NAME='MeterReadingsDB', DB_VER=4, STORE='months';
 let db=null;
 
@@ -820,7 +1278,6 @@ function openDB(){
     const req=indexedDB.open(DB_NAME,DB_VER);
     req.onupgradeneeded=e=>{
       const d=e.target.result;
-      // Always check before creating — handles upgrades from any previous version
       const stores={
         [STORE]:{keyPath:'key'},
         propSettings:{keyPath:'key'},
@@ -835,22 +1292,255 @@ function openDB(){
     req.onerror=e=>rej(e.target.error);
   });
 }
-function dbSave(key){
-  if(!db)return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
-  catch(e){ console.error('dbSave failed',key,e); }
+
+// ── Supabase ping ──
+async function checkSupabase(){
+  if(!SB_URL||!SB_KEY) return false;
+  try{
+    await sbFetch('app_users','GET',null,'?limit=1');
+    return true;
+  }catch(e){
+    console.warn('Supabase unreachable, falling back to IndexedDB',e.message);
+    return false;
+  }
 }
-function dbDelete(key){
-  if(!db)return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
-  catch(e){ console.error('dbDelete failed',key,e); }
+
+// ── STATUS INDICATOR ──
+function setDBStatus(online){
+  dbOnline=online;
+  const el=document.getElementById('dbStatus');
+  if(!el)return;
+  if(!SB_URL||!SB_KEY){
+    el.textContent='● Local DB';
+    el.style.color='#F0A95A';
+    el.title='Supabase not configured — using local storage';
+  } else if(online){
+    el.textContent='● Cloud DB';
+    el.style.color='#7EC8E3';
+    el.title='Connected to Supabase';
+  } else {
+    el.textContent='● Offline (local)';
+    el.style.color='#F5AAAA';
+    el.title='Supabase unreachable — using local IndexedDB fallback';
+  }
 }
-function dbLoadAll(){
-  return new Promise((res,rej)=>{
+
+// ══════════════════════════════════════════
+// MONTHS — save / delete / load
+// ══════════════════════════════════════════
+async function dbSave(key){
+  const record={
+    key,
+    label:months[key].label, month:months[key].month, year:months[key].year,
+    units:months[key].units, water_rate:months[key].waterRate, elec_rate:months[key].elecRate,
+    water:months[key].water, elec:months[key].elec, billing:months[key].billing
+  };
+  if(dbOnline){
+    try{ await sbFetch('months','POST',record); }
+    catch(e){ console.error('sbSave months failed',e); }
+  }
+  // Always write to local IDB fallback
+  if(db){
+    try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
+    catch(e){ console.error('idbSave failed',e); }
+  }
+}
+
+async function dbDelete(key){
+  if(dbOnline){
+    try{ await sbFetch('months','DELETE',null,`?key=eq.${encodeURIComponent(key)}`); }
+    catch(e){ console.error('sbDelete months failed',e); }
+  }
+  if(db){
+    try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
+    catch(e){}
+  }
+}
+
+async function dbLoadAll(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('months','GET',null,'?order=key');
+      return (rows||[]).map(r=>({
+        key:r.key, label:r.label, month:r.month, year:r.year,
+        units:r.units, waterRate:r.water_rate, elecRate:r.elec_rate,
+        water:r.water||[], elec:r.elec||[], billing:r.billing||{}
+      }));
+    }catch(e){ console.error('sbLoadAll failed, using IDB',e); }
+  }
+  // Fallback to IDB
+  return new Promise(res=>{
     if(!db){res([]);return;}
     const req=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
     req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=e=>rej(e.target.error);
+    req.onerror=()=>res([]);
+  });
+}
+
+// ══════════════════════════════════════════
+// PROP SETTINGS
+// ══════════════════════════════════════════
+const PROP_STORE='propSettings';
+
+async function savePropToDB(){
+  const record={
+    id:1,
+    complex:propSettings.complex||'', addr1:propSettings.addr1||'',
+    addr2:propSettings.addr2||'', contact:propSettings.contact||'',
+    email:propSettings.email||'', phone:propSettings.phone||'',
+    bank:propSettings.bank||'', acc_no:propSettings.accNo||'',
+    branch:propSettings.branch||'', acc_type:propSettings.accType||'',
+    vat:propSettings.vat||''
+  };
+  if(dbOnline){
+    try{ await sbFetch('prop_settings','POST',record); }
+    catch(e){ console.error('sbSave prop_settings failed',e); }
+  }
+  if(db){
+    try{ db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings}); }
+    catch(e){}
+  }
+}
+
+async function loadPropFromDB(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('prop_settings','GET',null,'?id=eq.1');
+      if(rows&&rows.length){
+        const r=rows[0];
+        Object.assign(propSettings,{
+          complex:r.complex||'', addr1:r.addr1||'', addr2:r.addr2||'',
+          contact:r.contact||'', email:r.email||'', phone:r.phone||'',
+          bank:r.bank||'', accNo:r.acc_no||'', branch:r.branch||'',
+          accType:r.acc_type||'', vat:r.vat||''
+        });
+        return;
+      }
+    }catch(e){ console.error('sbLoad prop_settings failed, using IDB',e); }
+  }
+  // IDB fallback
+  return new Promise(res=>{
+    if(!db){res();return;}
+    const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
+    req.onsuccess=e=>{
+      if(e.target.result){ const{key,...data}=e.target.result; Object.assign(propSettings,data); }
+      res();
+    };
+    req.onerror=()=>res();
+  });
+}
+
+// ══════════════════════════════════════════
+// USERS
+// ══════════════════════════════════════════
+const USER_STORE='users';
+
+async function dbSaveUser(u){
+  if(dbOnline){
+    try{
+      await sbFetch('app_users','POST',{
+        username:u.username, name:u.name, role:u.role,
+        hash:u.hash, last_login:u.lastLogin||null
+      });
+    }catch(e){ console.error('sbSaveUser failed',e); }
+  }
+  if(db){
+    try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u); }
+    catch(e){}
+  }
+}
+
+async function dbDeleteUser(username){
+  if(dbOnline){
+    try{ await sbFetch('app_users','DELETE',null,`?username=eq.${encodeURIComponent(username)}`); }
+    catch(e){ console.error('sbDeleteUser failed',e); }
+  }
+  if(db){
+    try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username); }
+    catch(e){}
+  }
+}
+
+async function dbGetAllUsers(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('app_users','GET',null,'?order=username');
+      return (rows||[]).map(r=>({
+        username:r.username, name:r.name, role:r.role,
+        hash:r.hash, lastLogin:r.last_login
+      }));
+    }catch(e){ console.error('sbGetAllUsers failed, using IDB',e); }
+  }
+  return new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+}
+
+// ══════════════════════════════════════════
+// UNIT OWNERS
+// ══════════════════════════════════════════
+const UNITS_STORE='unitOwners';
+
+async function dbSaveUnit(u){
+  const unitNum=parseInt(u.unit);
+  if(dbOnline){
+    try{
+      await sbFetch('unit_owners','POST',{
+        unit:unitNum,
+        first:u.first||'', last:u.last||'', email:u.email||'', phone:u.phone||'',
+        first2:u.first2||'', last2:u.last2||'', email2:u.email2||'', phone2:u.phone2||'',
+        notes:u.notes||''
+      });
+    }catch(e){ console.error('sbSaveUnit failed',e); }
+  }
+  if(db){
+    try{
+      const record={...u,unit:unitNum};
+      db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(record);
+    }catch(e){ console.error('idbSaveUnit failed',e); }
+  }
+}
+
+async function dbDeleteUnit(unitNum){
+  const n=parseInt(unitNum);
+  if(dbOnline){
+    try{ await sbFetch('unit_owners','DELETE',null,`?unit=eq.${n}`); }
+    catch(e){ console.error('sbDeleteUnit failed',e); }
+  }
+  if(db){
+    try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(n); }
+    catch(e){}
+  }
+}
+
+async function dbLoadAllUnits(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('unit_owners','GET',null,'?order=unit');
+      return (rows||[]).map(r=>({
+        unit:parseInt(r.unit),
+        first:r.first||'', last:r.last||'', email:r.email||'', phone:r.phone||'',
+        first2:r.first2||'', last2:r.last2||'', email2:r.email2||'', phone2:r.phone2||'',
+        notes:r.notes||''
+      }));
+    }catch(e){ console.error('sbLoadAllUnits failed, using IDB',e); }
+  }
+  return new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+}
+
+async function loadUnitsFromDB(){
+  const saved=await dbLoadAllUnits();
+  saved.forEach(u=>{
+    const normalised={...u,unit:parseInt(u.unit)};
+    units[String(normalised.unit)]=normalised;
   });
 }
 
@@ -870,15 +1560,20 @@ async function init(){
   }
   document.getElementById('selMonth').value=String(now.getMonth()+1).padStart(2,'0');
   try{
-    await openDB();
-    // Seed default admin if no users exist
-    const existingUsers=await dbGetAllUsers();
-    if(!existingUsers.length) dbSaveUser(DEFAULT_ADMIN);
+    // Try IndexedDB for offline fallback first
+    try{ await openDB(); }catch(e){ console.warn('IDB unavailable',e); }
+
+    // Check Supabase availability
+    const online = await checkSupabase();
+    setDBStatus(online);
+
+    // Always seed default admin to LOCAL IDB first (guarantees login works offline)
+    // This runs every version upgrade — safe because it only inserts if missing
+    await seedDefaultAdmin();
 
     await loadPropFromDB();
     await loadUnitsFromDB();
     updateHeaderComplex();
-    // Update auth overlay subtitle with complex name
     const sub=document.getElementById('authComplexSub');
     if(sub&&propSettings.complex) sub.textContent=propSettings.complex+' — Please sign in';
 
@@ -886,11 +1581,9 @@ async function init(){
     saved.forEach(rec=>{ const{key,...data}=rec; months[key]=data; });
     const keys=Object.keys(months).sort();
     if(keys.length){ renderTabs(); activateTab(keys[keys.length-1]); }
-    document.getElementById('dbStatus').textContent='● DB Connected';
-    document.getElementById('dbStatus').style.color='#7EC8E3';
   }catch(err){
-    document.getElementById('dbStatus').textContent='● DB Unavailable';
-    document.getElementById('dbStatus').style.color='#F5AAAA';
+    console.error('Init error',err);
+    setDBStatus(false);
   }
   populateInvMonths();
 
@@ -924,7 +1617,7 @@ function showPage(id,btn){
   if(id==='billing'){switchBillingTab('billing');}
   if(id==='dashboard')renderDashboard();
   if(id==='compare'){showPage('billing',document.querySelector('[onclick*="billing"]'));return;}
-  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
+  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();renderCloudDisplay();updatePropertyBanner();}
   if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
   if(id==='units')renderUnitsTable();
 }
@@ -1675,27 +2368,7 @@ let propSettings={
   complex:'',addr1:'',addr2:'',contact:'',email:'',phone:'',
   bank:'',accNo:'',branch:'',accType:'',vat:''
 };
-const PROP_STORE='propSettings';
-
-function savePropToDB(){
-  if(!db)return;
-  db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings});
-}
-
-async function loadPropFromDB(){
-  return new Promise((res)=>{
-    if(!db){res();return;}
-    const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
-    req.onsuccess=e=>{
-      if(e.target.result){
-        const {key,...data}=e.target.result;
-        propSettings={...propSettings,...data};
-      }
-      res();
-    };
-    req.onerror=()=>res();
-  });
-}
+// PROP_STORE functions moved to Supabase layer above
 
 function ps(k){return propSettings[k]||'';}
 
@@ -2115,6 +2788,7 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
 // ═══════════════ ADMIN ═══════════════
 function renderAdminStatus(){
   renderPropDisplayGrid();
+  renderCloudDisplay();
   setTimeout(renderUMTable, 50);
   const keys=Object.keys(months).sort();
   const body=document.getElementById('adminStatusBody');
@@ -2258,31 +2932,42 @@ function importDB(input){
   reader.readAsText(file);
 }
 
-function wipeAllData(){
+async function wipeAllData(){
   if(!confirm('⚠️ Permanently delete ALL data from the local database?\n\nThis includes all months, readings, billing, units, property settings and users.\n\nThis cannot be undone. Export a backup first!'))return;
   if(!confirm('Last chance — wipe EVERYTHING including users?'))return;
 
   // Wipe months
-  Object.keys(months).forEach(k=>{delete months[k];dbDelete(k);});
+  if(dbOnline){
+    try{ await sbFetch('months','DELETE',null,'?key=neq.___none___'); }catch(e){}
+    try{ await sbFetch('unit_owners','DELETE',null,'?unit=gt.0'); }catch(e){}
+    try{ await sbFetch('prop_settings','DELETE',null,'?id=eq.1'); }catch(e){}
+  }
+  Object.keys(months).forEach(k=>{
+    if(db) try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(k); }catch(e){}
+    delete months[k];
+  });
   activeKey=null;
 
   // Wipe units
   Object.keys(units).forEach(k=>{
-    dbDeleteUnit(parseInt(k));
+    if(db) try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(k)); }catch(e){}
     delete units[k];
   });
 
   // Wipe propSettings (reset to defaults)
   Object.keys(propSettings).forEach(k=>{ propSettings[k]=''; });
-  propSettings.dueDays='30';
-  savePropToDB();
+  await savePropToDB();
 
-  // Wipe users except admin (so you can still log back in)
-  if(db){
-    db.transaction('users','readwrite').objectStore('users').clear();
-    // Re-seed default admin
-    dbSaveUser(DEFAULT_ADMIN);
+  // Wipe users and re-seed default admin
+  if(dbOnline){
+    try{
+      await sbFetch('app_users','DELETE',null,'?username=neq.___none___');
+    }catch(e){ console.error('wipe users failed',e); }
   }
+  if(db){
+    try{ db.transaction('users','readwrite').objectStore('users').clear(); }catch(e){}
+  }
+  await dbSaveUser(DEFAULT_ADMIN);
 
   // Reset UI
   document.getElementById('activeBadge').textContent='No month selected';
@@ -2352,648 +3037,6 @@ function showToast(msg,color='var(--green)'){
   const t=document.getElementById('toast');t.textContent=msg;t.style.background=color;
   t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);
 }
-
-
-// ═══════════════════════════════════════════════════════════
-// AUTH SYSTEM
-// ═══════════════════════════════════════════════════════════
-const USER_STORE='users';
-let currentUser=null; // {username, name, role}
-
-// Simple hash — SHA-256 via Web Crypto
-async function hashPwd(pwd){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-// Default admin seeded on first run
-const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
-  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // 'admin'
-  lastLogin:null};
-
-// ── DB helpers for users store ──
-function dbSaveUser(u){
-  if(!db)return;
-  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u);
-}
-function dbDeleteUser(username){
-  if(!db)return;
-  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username);
-}
-function dbGetAllUsers(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
-  });
-}
-
-// ── Session (sessionStorage — clears on tab close) ──
-function saveSession(user){
-  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
-  catch(e){ console.warn('Session storage unavailable',e); }
-}
-function loadSession(){
-  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
-}
-function clearSession(){
-  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
-}
-
-// ── Login flow ──
-async function doLogin(){
-  const username=document.getElementById('authUser').value.trim().toLowerCase();
-  const password=document.getElementById('authPass').value;
-  const errEl=document.getElementById('authError');
-  errEl.style.display='none';
-  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
-
-  const users=await dbGetAllUsers();
-  const user=users.find(u=>u.username===username);
-  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  const hash=await hashPwd(password);
-  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  // Success
-  user.lastLogin=new Date().toISOString();
-  dbSaveUser(user);
-  currentUser={username:user.username,name:user.name,role:user.role};
-  saveSession(currentUser);
-  applyAuth();
-}
-
-function doLogout(){
-  clearSession();
-  currentUser=null;
-  document.getElementById('authOverlay').style.display='flex';
-  document.getElementById('authUser').value='';
-  document.getElementById('authPass').value='';
-  document.getElementById('authError').style.display='none';
-  document.getElementById('userChip').style.display='none';
-  // hide main content
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
-  document.querySelector('.shell').style.display='none';
-}
-
-function applyAuth(){
-  if(!currentUser)return;
-  // Hide overlay
-  document.getElementById('authOverlay').style.display='none';
-  document.querySelector('header').style.opacity='';
-  document.querySelector('header').style.pointerEvents='';
-  document.querySelector('.shell').style.display='';
-
-  // Update user chip
-  const chip=document.getElementById('userChip');
-  chip.style.display='flex';
-  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
-  document.getElementById('userChipName').textContent=currentUser.name;
-  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
-
-  // Show/hide nav buttons based on role
-  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
-    const roles=btn.getAttribute('data-roles')||'';
-    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
-  });
-
-  // Navigate to first visible page
-  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
-  if(first) first.click();
-
-  // Restrict data entry fields for readonly
-  if(currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
-
-  renderUMTable();
-  // Mobile nav
-  if(typeof showMobileNav==='function') showMobileNav();
-  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
-}
-
-const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
-const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
-
-function showUserMenu(){
-  if(!confirm(`Signed in as ${currentUser.name} (${ROLE_LABELS[currentUser.role]})
-
-Click OK to sign out.`))return;
-  doLogout();
-}
-
-// Role guard merged into showPage above
-
-// ── User Management ──
-async function renderUMTable(){
-  const tbody=document.getElementById('umBody');
-  if(!tbody)return;
-  const users=await dbGetAllUsers();
-  tbody.innerHTML=users.map(u=>`
-    <tr>
-      <td style="font-family:var(--mono);font-weight:600">${u.username}</td>
-      <td>${u.name}</td>
-      <td><span class="role-pill ${ROLE_COLORS[u.role]}">${ROLE_LABELS[u.role]||u.role}</span></td>
-      <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Never'}</td>
-      <td style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button onclick="resetPassword('${u.username}')" style="font-size:.7rem;padding:.25rem .6rem;border:1.5px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-family:var(--sans);font-weight:600">Reset PW</button>
-        ${u.username!=='admin'&&u.username!==currentUser?.username?`<button onclick="deleteUser('${u.username}')" style="font-size:.7rem;padding:.25rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Remove</button>`:''}
-      </td>
-    </tr>`).join('');
-}
-
-async function addUser(){
-  const username=document.getElementById('umNewUser').value.trim().toLowerCase();
-  const name=document.getElementById('umNewName').value.trim();
-  const password=document.getElementById('umNewPass').value;
-  const role=document.getElementById('umNewRole').value;
-  if(!username||!name||!password){showToast('Fill in all fields','#C55A11');return;}
-  const users=await dbGetAllUsers();
-  if(users.find(u=>u.username===username)){showToast('Username already exists','#C55A11');return;}
-  const hash=await hashPwd(password);
-  dbSaveUser({username,name,role,hash,lastLogin:null});
-  document.getElementById('umNewUser').value='';
-  document.getElementById('umNewName').value='';
-  document.getElementById('umNewPass').value='';
-  showToast('User added: '+name);
-  setTimeout(renderUMTable,200);
-}
-
-async function resetPassword(username){
-  const newPwd=prompt('Enter new password for '+username+':');
-  if(!newPwd)return;
-  const users=await dbGetAllUsers();
-  const user=users.find(u=>u.username===username);
-  if(!user)return;
-  user.hash=await hashPwd(newPwd);
-  dbSaveUser(user);
-  showToast('Password reset for '+username);
-}
-
-async function deleteUser(username){
-  if(!confirm('Remove user "'+username+'"? This cannot be undone.'))return;
-  dbDeleteUser(username);
-  showToast('User removed','#C55A11');
-  setTimeout(renderUMTable,200);
-}
-
-// renderUMTable is called from renderAdminStatus directly
-
-
-// ═══════════════ MOBILE NAV ═══════════════
-function isMobile(){return window.innerWidth<=700;}
-
-function showMobileNav(){
-  const nav=document.getElementById('mobileNavBar');
-  if(!nav)return;
-  nav.style.display=isMobile()?'flex':'none';
-}
-
-function mobNav(id,btn){
-  // compare is now inside billing page
-  if(id==='compare') id='billing';
-  document.querySelectorAll('.mob-nav-btn').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
-  const deskBtn=document.querySelector(`#mainNav .nav-btn[onclick*="${id}"]`);
-  showPage(id,deskBtn||btn);
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-function syncMobileNav(id){
-  document.querySelectorAll('.mob-nav-btn').forEach(b=>{
-    b.classList.toggle('active',b.getAttribute('data-page')===id);
-  });
-}
-
-function applyMobileNavRoles(){
-  if(!currentUser)return;
-  const allowed={
-    admin:['data-entry','units','billing','dashboard','invoices','admin'],
-    entry:['data-entry','units','billing','dashboard'],
-    billing:['data-entry','units','billing','dashboard','invoices'],
-    readonly:['data-entry','units','billing','dashboard']
-  }[currentUser.role]||[];
-  document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
-    const page=btn.getAttribute('data-page');
-    btn.style.display=allowed.includes(page)?'':'none';
-  });
-}
-
-// Mobile nav sync is done inside showPage directly
-
-// Show/hide mobile nav on resize
-window.addEventListener('resize',showMobileNav);
-showMobileNav();
-
-
-// Add PWA meta tags dynamically
-(function addPWAMeta(){
-  const metas=[
-    {name:'mobile-web-app-capable',content:'yes'},
-    {name:'apple-mobile-web-app-capable',content:'yes'},
-    {name:'apple-mobile-web-app-status-bar-style',content:'black-translucent'},
-    {name:'apple-mobile-web-app-title',content:'Meter Readings'},
-    {name:'theme-color',content:'#1F3864'},
-  ];
-  metas.forEach(({name,content})=>{
-    const m=document.createElement('meta');
-    m.name=name;m.content=content;
-    document.head.appendChild(m);
-  });
-})();
-
-
-
-// ═══════════════════════════════════════════════════════════
-// UNIT OWNER MANAGEMENT
-// ═══════════════════════════════════════════════════════════
-const UNITS_STORE='unitOwners';
-let units={}; // key: unitNum (string) → {unit,first,last,email,phone,notes}
-let editingUnit=null;
-
-function dbSaveUnit(u){
-  if(!db)return;
-  try{
-    // Ensure unit key is stored as a number for consistent retrieval
-    const record={...u, unit:parseInt(u.unit)};
-    db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(record);
-  }catch(e){ console.error('dbSaveUnit failed',u,e); }
-}
-function dbDeleteUnit(unitNum){
-  if(!db)return;
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(unitNum)); }
-  catch(e){ console.error('dbDeleteUnit failed',unitNum,e); }
-}
-function dbLoadAllUnits(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
-  });
-}
-
-async function loadUnitsFromDB(){
-  const saved=await dbLoadAllUnits();
-  saved.forEach(u=>{
-    const normalised={...u, unit:parseInt(u.unit)};
-    units[String(normalised.unit)]=normalised;
-  });
-}
-
-function getUnitOwner(unitNum){
-  return units[String(unitNum)]||units[String(parseInt(unitNum))]||null;
-}
-
-function renderUnitsTable(){
-  const tbody=document.getElementById('unitsBody');
-  if(!tbody)return;
-  const search=(document.getElementById('unitSearch')?.value||'').toLowerCase();
-  const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
-  const filtered=search?sorted.filter(u=>
-    String(u.unit).includes(search)||
-    (u.first||'').toLowerCase().includes(search)||
-    (u.last||'').toLowerCase().includes(search)||
-    (u.email||'').toLowerCase().includes(search)||
-    (u.phone||'').toLowerCase().includes(search)
-  ):sorted;
-
-  if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet — use the form below'}</td></tr>`;
-    return;
-  }
-  tbody.innerHTML=filtered.map(u=>`
-    <tr>
-      <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
-      <td>${u.first||'—'}</td>
-      <td>${u.last||'—'}</td>
-      <td style="font-family:var(--mono);font-size:.76rem">${u.email||'—'}</td>
-      <td style="font-family:var(--mono);font-size:.76rem">${u.phone||'—'}</td>
-      <td style="font-size:.76rem;color:var(--muted)">${u.notes||''}</td>
-      <td style="display:flex;gap:.4rem">
-        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
-        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
-      </td>
-    </tr>`).join('');
-}
-
-function saveUnit(){
-  const unitNum=parseInt(document.getElementById('uoUnit').value);
-  if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
-  const u={
-    unit:unitNum,
-    first:document.getElementById('uoFirst').value.trim(),
-    last:document.getElementById('uoLast').value.trim(),
-    email:document.getElementById('uoEmail').value.trim(),
-    phone:document.getElementById('uoPhone').value.trim(),
-    notes:document.getElementById('uoNotes').value.trim()
-  };
-  units[String(unitNum)]=u;
-  dbSaveUnit(u);
-  renderUnitsTable();
-  clearUnitForm();
-  showToast('Unit '+(editingUnit||unitNum)+' saved');
-  editingUnit=null;
-}
-
-function editUnit(unitNum){
-  const u=units[String(unitNum)];
-  if(!u)return;
-  editingUnit=unitNum;
-  document.getElementById('uoUnit').value=u.unit;
-  document.getElementById('uoFirst').value=u.first||'';
-  document.getElementById('uoLast').value=u.last||'';
-  document.getElementById('uoEmail').value=u.email||'';
-  document.getElementById('uoPhone').value=u.phone||'';
-  document.getElementById('uoNotes').value=u.notes||'';
-  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
-  document.getElementById('uoSaveBtn').textContent='Update Unit';
-  document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
-}
-
-function removeUnit(unitNum){
-  if(!confirm('Remove owner data for Unit '+unitNum+'?'))return;
-  delete units[String(unitNum)];
-  dbDeleteUnit(unitNum);
-  renderUnitsTable();
-  showToast('Unit '+unitNum+' removed','#C55A11');
-}
-
-function clearUnitForm(){
-  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoNotes'].forEach(id=>{
-    const el=document.getElementById(id); if(el)el.value='';
-  });
-  document.getElementById('unitFormTitle').textContent='Add / Edit Unit Owner';
-  document.getElementById('uoSaveBtn').textContent='Save Unit';
-  editingUnit=null;
-}
-
-function exportUnitsExcel(){
-  const wb=XLSX.utils.book_new();
-  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','Notes'];
-  const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
-    u.unit, u.first||'', u.last||'',
-    [u.first,u.last].filter(Boolean).join(' ')||'',
-    u.email||'', u.phone||'', u.notes||''
-  ]);
-  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[8,14,14,20,28,16,20].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
-  XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  showToast('Unit directory exported');
-}
-
-// Units page is handled inside showPage directly
-
-
-// ══════════════════════════════════════════
-// BILLING TAB SWITCHER
-// ══════════════════════════════════════════
-function switchBillingTab(tab){
-  const bDiv=document.getElementById('billingContent');
-  const cDiv=document.getElementById('compareContent');
-  const bBtn=document.getElementById('bTabBilling');
-  const cBtn=document.getElementById('bTabCompare');
-  if(tab==='billing'){
-    bDiv.style.display=''; cDiv.style.display='none';
-    if(bBtn){bBtn.classList.add('tw');cBtn.classList.remove('tw');}
-    renderBillingPage();
-  } else {
-    bDiv.style.display='none'; cDiv.style.display='';
-    if(cBtn){cBtn.classList.add('tw');bBtn.classList.remove('tw');}
-    renderComparePage();
-  }
-}
-
-// ══════════════════════════════════════════
-// UNIT INFO POPUP (info button on data table)
-// ══════════════════════════════════════════
-function showUnitInfo(unitNum, e){
-  e.stopPropagation();
-  const u=getUnitOwner(unitNum);
-  const existing=document.getElementById('unitInfoPopup');
-  if(existing) existing.remove();
-
-  const popup=document.createElement('div');
-  popup.id='unitInfoPopup';
-  popup.style.cssText='position:fixed;z-index:600;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:240px;max-width:320px;font-family:var(--sans)';
-
-  if(!u){
-    popup.innerHTML=`<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.5rem">
-      <div style="font-weight:700;color:var(--navy);margin-bottom:.5rem">Unit ${unitNum}</div>
-      No owner data on file.
-      <div style="margin-top:.75rem"><button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.3rem .75rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Add Owner</button></div>
-    </div>`;
-  } else {
-    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
-    const p2=[u.first2,u.last2].filter(Boolean).join(' ');
-    popup.innerHTML=`
-      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum} — Owner Info</div>
-      <div style="margin-bottom:.65rem">
-        <div style="font-size:.65rem;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 1</div>
-        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p1}</div>
-        ${u.email?`<div style="font-size:.74rem;color:var(--muted)">${u.email}</div>`:''}
-        ${u.phone?`<div style="font-size:.74rem;color:var(--muted)">${u.phone}</div>`:''}
-      </div>
-      ${p2?`<div style="margin-bottom:.65rem">
-        <div style="font-size:.65rem;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 2</div>
-        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p2}</div>
-        ${u.email2?`<div style="font-size:.74rem;color:var(--muted)">${u.email2}</div>`:''}
-        ${u.phone2?`<div style="font-size:.74rem;color:var(--muted)">${u.phone2}</div>`:''}
-      </div>`:''}
-      ${u.notes?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem">${u.notes}</div>`:''}
-      <div style="margin-top:.75rem;display:flex;gap:.5rem">
-        <button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
-        <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer;font-weight:600">Close</button>
-      </div>`;
-  }
-
-  // Position near clicked button
-  const rect=e.target.getBoundingClientRect();
-  popup.style.top=(rect.bottom+8)+'px';
-  popup.style.left=Math.min(rect.left, window.innerWidth-340)+'px';
-  document.body.appendChild(popup);
-
-  // Auto-close on outside click
-  setTimeout(()=>{
-    const close=ev=>{if(!popup.contains(ev.target)){popup.remove();document.removeEventListener('click',close);}};
-    document.addEventListener('click',close);
-  },100);
-}
-
-function goToUnitsPage(unitNum){
-  const existing=document.getElementById('unitInfoPopup');
-  if(existing) existing.remove();
-  const btn=document.querySelector('#mainNav .nav-btn[onclick*="units"]');
-  showPage('units',btn);
-  setTimeout(()=>{
-    editUnit(unitNum)||(() => {
-      document.getElementById('uoUnit').value=unitNum;
-      document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
-    })();
-  },100);
-}
-
-// ══════════════════════════════════════════
-// UPDATE UNITS JS — support 2nd person
-// ══════════════════════════════════════════
-// Override saveUnit to include 2nd person fields
-function saveUnit(){
-  const unitNum=parseInt(document.getElementById('uoUnit').value);
-  if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
-  const u={
-    unit:unitNum,
-    first:document.getElementById('uoFirst').value.trim(),
-    last:document.getElementById('uoLast').value.trim(),
-    email:document.getElementById('uoEmail').value.trim(),
-    phone:document.getElementById('uoPhone').value.trim(),
-    first2:document.getElementById('uoFirst2')?.value.trim()||'',
-    last2:document.getElementById('uoLast2')?.value.trim()||'',
-    email2:document.getElementById('uoEmail2')?.value.trim()||'',
-    phone2:document.getElementById('uoPhone2')?.value.trim()||'',
-    notes:document.getElementById('uoNotes').value.trim()
-  };
-  units[String(unitNum)]=u;
-  dbSaveUnit(u);
-  renderUnitsTable();
-  clearUnitForm();
-  showToast('Unit '+unitNum+' saved');
-  editingUnit=null;
-}
-
-// Override editUnit to populate 2nd person fields
-function editUnit(unitNum){
-  const u=units[String(unitNum)];
-  if(!u)return false;
-  editingUnit=unitNum;
-  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
-  set('uoUnit',u.unit); set('uoFirst',u.first); set('uoLast',u.last);
-  set('uoEmail',u.email); set('uoPhone',u.phone);
-  set('uoFirst2',u.first2); set('uoLast2',u.last2);
-  set('uoEmail2',u.email2); set('uoPhone2',u.phone2);
-  set('uoNotes',u.notes);
-  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
-  document.getElementById('uoSaveBtn').textContent='Update Unit';
-  document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
-  return true;
-}
-
-// Override clearUnitForm for 2nd person fields
-function clearUnitForm(){
-  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoNotes'].forEach(id=>{
-    const el=document.getElementById(id); if(el)el.value='';
-  });
-  document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
-  document.getElementById('uoSaveBtn').textContent='Save Unit';
-  editingUnit=null;
-}
-
-// Override renderUnitsTable for 2 people columns
-function renderUnitsTable(){
-  const tbody=document.getElementById('unitsBody');
-  if(!tbody)return;
-  const search=(document.getElementById('unitSearch')?.value||'').toLowerCase();
-  const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
-  const filtered=search?sorted.filter(u=>
-    String(u.unit).includes(search)||
-    (u.first||'').toLowerCase().includes(search)||
-    (u.last||'').toLowerCase().includes(search)||
-    (u.email||'').toLowerCase().includes(search)||
-    (u.first2||'').toLowerCase().includes(search)||
-    (u.last2||'').toLowerCase().includes(search)||
-    (u.email2||'').toLowerCase().includes(search)
-  ):sorted;
-
-  if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
-    return;
-  }
-  tbody.innerHTML=filtered.map(u=>{
-    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
-    const p2=[u.first2,u.last2].filter(Boolean).join(' ')||'';
-    return `<tr>
-      <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
-      <td><div style="font-weight:600">${p1}</div>${u.phone?`<div style="font-size:.7rem;color:var(--muted)">${u.phone}</div>`:''}</td>
-      <td style="font-size:.76rem;font-family:var(--mono)">${u.email||'—'}</td>
-      <td style="font-size:.74rem;color:var(--muted)">${u.phone||'—'}</td>
-      <td>${p2?`<div style="font-weight:600">${p2}</div>${u.phone2?`<div style="font-size:.7rem;color:var(--muted)">${u.phone2}</div>`:''}`:'<span style="color:var(--muted);font-size:.74rem">—</span>'}</td>
-      <td style="font-size:.76rem;font-family:var(--mono)">${u.email2||''}</td>
-      <td style="font-size:.74rem;color:var(--muted)">${u.notes||''}</td>
-      <td style="display:flex;gap:.4rem">
-        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
-        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-// ══════════════════════════════════════════
-// AUTO-POPULATE INVOICE — both people
-// ══════════════════════════════════════════
-function onInvUnitChange(){
-  const unitNum=parseInt(document.getElementById('invUnit')?.value);
-  if(isNaN(unitNum))return;
-  const owner=getUnitOwner(unitNum);
-  if(owner){
-    const nameEl=document.getElementById('invOwnerName');
-    const emailEl=document.getElementById('invOwnerEmail');
-    const email2El=document.getElementById('invOwnerEmail2');
-    if(nameEl) nameEl.value=[owner.first,owner.last].filter(Boolean).join(' ')||'';
-    if(emailEl) emailEl.value=owner.email||'';
-    if(email2El) email2El.value=owner.email2||'';
-  }
-}
-
-// ══════════════════════════════════════════
-// EMAIL INVOICE via mailto
-// ══════════════════════════════════════════
-function emailInvoice(){
-  if(!previewKey||!previewUnit){showToast('No invoice loaded','#C55A11');return;}
-  const d=months[previewKey];
-  const owner=getUnitOwner(previewUnit);
-  const email1=document.getElementById('invOwnerEmail')?.value||owner?.email||'';
-  const email2=document.getElementById('invOwnerEmail2')?.value||owner?.email2||'';
-  const emails=[email1,email2].filter(Boolean);
-
-  if(!emails.length){
-    showToast('No email address on file for this unit','#C55A11');
-    return;
-  }
-
-  const {wUsage,eUsage,wCharge,eCharge,total,dueDate,fmtDate,invNo,ownerName}=invData(previewKey,previewUnit);
-  const complexName=ps('complex')||'Utility Management';
-  const subject=`Utility Invoice ${invNo} — Unit ${previewUnit} — ${d.label}`;
-  const body=`Dear ${ownerName},
-
-Please find your utility invoice for ${d.label}.
-
-Invoice Number: ${invNo}
-Unit: ${previewUnit}
-Billing Period: ${d.label}
-Due Date: ${fmtDate(dueDate)}
-
-CHARGES SUMMARY
-Water Usage: ${wUsage.toFixed(4)} kl @ R${d.waterRate}/kl = R${(wCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
-Electricity Usage: ${eUsage.toFixed(0)} kWh @ R${d.elecRate}/kWh = R${(eCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
-Total Due: R${total.toLocaleString('en-ZA',{minimumFractionDigits:2})}
-
-Payment is due by ${fmtDate(dueDate)}.
-${ps('bank')?`\nPayment Reference: ${invNo} / Unit ${previewUnit}\nBank: ${ps('bank')}\nAccount: ${ps('accNo')}\nBranch: ${ps('branch')}`:''}
-
-Please contact us if you have any queries.
-
-Kind regards,
-${ps('contact')||complexName}
-${ps('email')||''}
-${ps('phone')||''}`;
-
-  const mailto=`mailto:${emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.open(mailto,'_blank');
-  showToast('Email client opened for '+emails.join(', '));
-}
-
 </script>
 
 <!-- AUTH OVERLAY -->
@@ -3020,6 +3063,11 @@ ${ps('phone')||''}`;
     </div>
     <button class="auth-btn" onclick="doLogin()">Sign In</button>
     <div class="auth-error" id="authError">Incorrect username or password</div>
+    <div style="margin-top:1rem;text-align:center">
+      <button onclick="emergencyReset()" style="background:none;border:none;color:var(--muted);font-size:.68rem;cursor:pointer;text-decoration:underline;font-family:var(--sans)">
+        Forgot password / reset to default admin
+      </button>
+    </div>
   </div>
   <div class="auth-footer">Mogale City Complex &nbsp;|&nbsp; Utility Management System</div>
 </div>
