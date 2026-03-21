@@ -1291,8 +1291,11 @@ async function init(){
   if(session){
     currentUser=session;
     applyAuth();
+  } else {
+    // TEMP: disable logon portion by auto-signing in as admin
+    currentUser={username:'admin',name:'Administrator',role:'admin'};
+    applyAuth();
   }
-  // else: overlay stays visible, user must log in
 }
 init();
 
