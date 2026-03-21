@@ -462,10 +462,9 @@ input[type=file]{display:none}
     </div>
   </div>
   <div class="header-nav" id="mainNav">
-    <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Data Entry</button>
+    <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('units',this)">Units</button>
     <button class="nav-btn" data-roles="admin,billing" onclick="showPage('billing',this)">Billing</button>
-    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('compare',this)">Compare</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-btn" data-roles="admin,billing" onclick="showPage('invoices',this)">Invoices</button>
     <button class="nav-btn" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
@@ -517,18 +516,14 @@ input[type=file]{display:none}
   </div>
 </div>
 
-<!-- ═══════════════ BILLING ═══════════════ -->
+<!-- ═══════════════ BILLING & COMPARE ═══════════════ -->
 <div id="page-billing" class="page">
-  <div id="billingContent">
-    <div class="empty-state"><p>Add month sheets in <strong>Data Entry</strong> first.</p></div>
+  <div id="billingTabs" style="display:flex;gap:.45rem;margin-bottom:1.25rem;border-bottom:2px solid var(--border);padding-bottom:.75rem">
+    <button class="type-btn tw" id="bTabBilling" onclick="switchBillingTab('billing')">Billing & Recovery</button>
+    <button class="type-btn" id="bTabCompare" onclick="switchBillingTab('compare')">Month Comparison</button>
   </div>
-</div>
-
-<!-- ═══════════════ COMPARE ═══════════════ -->
-<div id="page-compare" class="page">
-  <div id="compareContent">
-    <div class="empty-state"><p>Add at least 2 months to use the comparison tool.</p></div>
-  </div>
+  <div id="billingContent"></div>
+  <div id="compareContent" style="display:none"></div>
 </div>
 
 <!-- ═══════════════ DASHBOARD ═══════════════ -->
@@ -551,9 +546,10 @@ input[type=file]{display:none}
     <div style="background:#1F3864;padding:1rem 1.4rem;display:flex;align-items:center;justify-content:space-between">
       <span style="color:#fff;font-weight:700;font-size:.88rem;letter-spacing:.05em">INVOICE PREVIEW</span>
       <div style="display:flex;gap:.65rem;align-items:center">
-        <button id="modalDownloadBtn" onclick="downloadFromPreview()" style="background:#1E6B3C;color:#fff;border:none;border-radius:6px;padding:.42rem 1.1rem;font-family:inherit;font-weight:700;font-size:.76rem;cursor:pointer;display:flex;align-items:center;gap:.4rem">
+        <button id="modalDownloadBtn" onclick="downloadFromPreview()" style="background:#1E6B3C;color:#fff;border:none;border-radius:6px;padding:.42rem 1.1rem;font-family:inherit;font-weight:700;font-size:.76rem;cursor:pointer">
           Download PDF
         </button>
+        <button id="modalEmailBtn" onclick="emailInvoice()" style="background:#2E75B6;color:#fff;border:none;border-radius:6px;padding:.42rem 1.1rem;font-family:inherit;font-weight:700;font-size:.76rem;cursor:pointer">Email to Owner</button>
         <button onclick="closeInvModal()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:.42rem .9rem;font-family:inherit;font-weight:600;font-size:.76rem;cursor:pointer">Close</button>
       </div>
     </div>
@@ -579,7 +575,8 @@ input[type=file]{display:none}
           <option value="">-- choose unit --</option>
         </select></div>
       <div class="inv-field"><label>Owner Name</label><input type="text" id="invOwnerName" placeholder="Owner / tenant name"></div>
-      <div class="inv-field"><label>Owner Email</label><input type="text" id="invOwnerEmail" placeholder="owner@email.com"></div>
+      <div class="inv-field"><label>Owner Email (P1)</label><input type="text" id="invOwnerEmail" placeholder="owner@email.com"></div>
+      <div class="inv-field"><label>Owner Email (P2)</label><input type="text" id="invOwnerEmail2" placeholder="second@email.com"></div>
       <div class="inv-field"><label>Invoice Number</label><input type="text" id="invNumber" placeholder="INV-2026-001"></div>
     </div>
     <div class="exp-row" style="justify-content:flex-start">
@@ -607,11 +604,12 @@ input[type=file]{display:none}
     </div>
     <div class="tw"><table class="um-table" id="unitsTable">
       <thead><tr>
-        <th style="width:80px">Unit #</th>
-        <th>Owner Name</th>
-        <th>Surname</th>
-        <th>Email</th>
-        <th>Phone</th>
+        <th style="width:70px">Unit #</th>
+        <th>Person 1</th>
+        <th>P1 Email</th>
+        <th>P1 Phone</th>
+        <th>Person 2</th>
+        <th>P2 Email</th>
         <th>Notes</th>
         <th style="width:80px">Actions</th>
       </tr></thead>
@@ -620,33 +618,43 @@ input[type=file]{display:none}
   </div>
 
   <div class="admin-card">
-    <h3 id="unitFormTitle" style="margin-bottom:1rem">Add / Edit Unit Owner</h3>
-    <div class="um-add-form" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
-      <div>
-        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Unit Number</label>
-        <input type="number" id="uoUnit" placeholder="e.g. 1" min="1">
+    <h3 id="unitFormTitle" style="margin-bottom:1rem">Add / Edit Unit</h3>
+    <div style="margin-bottom:.75rem">
+      <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Unit Number</label>
+      <input type="number" id="uoUnit" placeholder="e.g. 1" min="1" style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:120px">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem">
+      <div style="background:var(--sky2);border-radius:8px;padding:1rem">
+        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin-bottom:.75rem">Person 1 (Primary)</div>
+        <div class="um-add-form" style="padding:0;background:none;grid-template-columns:1fr 1fr;gap:.65rem">
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">First Name</label>
+            <input type="text" id="uoFirst" placeholder="First name"></div>
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Surname</label>
+            <input type="text" id="uoLast" placeholder="Surname"></div>
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Email</label>
+            <input type="text" id="uoEmail" placeholder="email@example.com"></div>
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Phone</label>
+            <input type="text" id="uoPhone" placeholder="+27 82 000 0000"></div>
+        </div>
       </div>
-      <div>
-        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">First Name</label>
-        <input type="text" id="uoFirst" placeholder="First name">
+      <div style="background:var(--sky2);border-radius:8px;padding:1rem">
+        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--orange);margin-bottom:.75rem">Person 2 (Secondary)</div>
+        <div class="um-add-form" style="padding:0;background:none;grid-template-columns:1fr 1fr;gap:.65rem">
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">First Name</label>
+            <input type="text" id="uoFirst2" placeholder="First name"></div>
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Surname</label>
+            <input type="text" id="uoLast2" placeholder="Surname"></div>
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Email</label>
+            <input type="text" id="uoEmail2" placeholder="email@example.com"></div>
+          <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Phone</label>
+            <input type="text" id="uoPhone2" placeholder="+27 82 000 0000"></div>
+        </div>
       </div>
-      <div>
-        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Surname</label>
-        <input type="text" id="uoLast" placeholder="Surname">
-      </div>
-      <div>
-        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Email</label>
-        <input type="text" id="uoEmail" placeholder="owner@email.com">
-      </div>
-      <div>
-        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Phone</label>
-        <input type="text" id="uoPhone" placeholder="+27 82 000 0000">
-      </div>
-      <div>
-        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Notes</label>
-        <input type="text" id="uoNotes" placeholder="e.g. Tenant, landlord...">
-      </div>
-      <div style="display:flex;gap:.5rem;align-items:flex-end">
+    </div>
+    <div class="um-add-form" style="grid-template-columns:1fr auto;align-items:end;padding:0;background:none">
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Notes</label>
+        <input type="text" id="uoNotes" placeholder="e.g. Tenant, Landlord, Body corporate..."></div>
+      <div style="display:flex;gap:.5rem">
         <button class="btn-exp" onclick="saveUnit()" id="uoSaveBtn">Save Unit</button>
         <button class="btn-ghost" onclick="clearUnitForm()">Clear</button>
       </div>
@@ -887,10 +895,10 @@ function showPage(id,btn){
   // Role guard — skip if not logged in yet
   if(currentUser){
     const allowed={
-      admin:['data-entry','units','billing','compare','dashboard','invoices','admin'],
-      entry:['data-entry','units','compare','dashboard'],
-      billing:['data-entry','units','billing','compare','dashboard','invoices'],
-      readonly:['data-entry','units','compare','dashboard']
+      admin:['data-entry','units','billing','dashboard','invoices','admin'],
+      entry:['data-entry','units','billing','dashboard'],
+      billing:['data-entry','units','billing','dashboard','invoices'],
+      readonly:['data-entry','units','billing','dashboard']
     }[currentUser.role]||[];
     if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
   }
@@ -898,9 +906,9 @@ function showPage(id,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(btn)btn.classList.add('active');
-  if(id==='billing')renderBillingPage();
+  if(id==='billing'){switchBillingTab('billing');}
   if(id==='dashboard')renderDashboard();
-  if(id==='compare')renderComparePage();
+  if(id==='compare'){showPage('billing',document.querySelector('[onclick*="billing"]'));return;}
   if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
   if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
   if(id==='units')renderUnitsTable();
@@ -1033,7 +1041,7 @@ function renderDataTable(c){
     const u=(!isNaN(o)&&!isNaN(cl)&&cl>=o)?(cl-o):null;
     const ch=u!==null?u*rate:null;
     if(u!==null){tU+=u;tC+=ch;}
-    tr.innerHTML=`<td class="ul">Unit ${row.unit}</td>
+    tr.innerHTML=`<td class="ul" style="white-space:nowrap">Unit ${row.unit}<button onclick="showUnitInfo(${row.unit},event)" title="Owner info" style="margin-left:.4rem;background:none;border:1.5px solid var(--border);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:.6rem;color:var(--blue);font-weight:700;line-height:1;padding:0;vertical-align:middle">i</button></td>
       <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.opening}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value)"></td>
       <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
@@ -1657,18 +1665,7 @@ function populateInvUnits(){
   });
 }
 
-function onInvUnitChange(){
-  populateInvUnits();
-  const unitNum=parseInt(document.getElementById('invUnit')?.value);
-  if(isNaN(unitNum))return;
-  const owner=getUnitOwner(unitNum);
-  if(owner){
-    const nameEl=document.getElementById('invOwnerName');
-    const emailEl=document.getElementById('invOwnerEmail');
-    if(nameEl&&!nameEl.value) nameEl.value=[owner.first,owner.last].filter(Boolean).join(' ');
-    if(emailEl&&!emailEl.value) emailEl.value=owner.email||'';
-  }
-}
+// onInvUnitChange now defined in new JS block below
 
 let previewKey=null, previewUnit=null;
 
@@ -1720,6 +1717,7 @@ function invData(key,unitNum){
   const _owner=getUnitOwner(unitNum);
   const ownerName=document.getElementById('invOwnerName')?.value||(_owner?[_owner.first,_owner.last].filter(Boolean).join(' '):'')||'Unit '+unitNum+' Owner';
   const ownerEmail=document.getElementById('invOwnerEmail')?.value||(_owner?_owner.email:'')||'';
+  const ownerEmail2=document.getElementById('invOwnerEmail2')?.value||(_owner?_owner.email2:'')||'';
   const ownerPhone=_owner?_owner.phone:'';
   const invNo=document.getElementById('invNumber')?.value||'INV-'+d.year+d.month+'-'+String(unitNum).padStart(3,'0');
   return {d,wRow,eRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,
@@ -2510,6 +2508,254 @@ function exportUnitsExcel(){
 
 // Inject showPage handler for units page
 const _baseShowPage=showPage;
+
+
+
+// ══════════════════════════════════════════
+// BILLING TAB SWITCHER
+// ══════════════════════════════════════════
+function switchBillingTab(tab){
+  const bDiv=document.getElementById('billingContent');
+  const cDiv=document.getElementById('compareContent');
+  const bBtn=document.getElementById('bTabBilling');
+  const cBtn=document.getElementById('bTabCompare');
+  if(tab==='billing'){
+    bDiv.style.display=''; cDiv.style.display='none';
+    if(bBtn){bBtn.classList.add('tw');cBtn.classList.remove('tw');}
+    renderBillingPage();
+  } else {
+    bDiv.style.display='none'; cDiv.style.display='';
+    if(cBtn){cBtn.classList.add('tw');bBtn.classList.remove('tw');}
+    renderComparePage();
+  }
+}
+
+// ══════════════════════════════════════════
+// UNIT INFO POPUP (info button on data table)
+// ══════════════════════════════════════════
+function showUnitInfo(unitNum, e){
+  e.stopPropagation();
+  const u=getUnitOwner(unitNum);
+  const existing=document.getElementById('unitInfoPopup');
+  if(existing) existing.remove();
+
+  const popup=document.createElement('div');
+  popup.id='unitInfoPopup';
+  popup.style.cssText='position:fixed;z-index:600;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:240px;max-width:320px;font-family:var(--sans)';
+
+  if(!u){
+    popup.innerHTML=`<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.5rem">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:.5rem">Unit ${unitNum}</div>
+      No owner data on file.
+      <div style="margin-top:.75rem"><button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.3rem .75rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Add Owner</button></div>
+    </div>`;
+  } else {
+    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
+    const p2=[u.first2,u.last2].filter(Boolean).join(' ');
+    popup.innerHTML=`
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum} — Owner Info</div>
+      <div style="margin-bottom:.65rem">
+        <div style="font-size:.65rem;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 1</div>
+        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p1}</div>
+        ${u.email?`<div style="font-size:.74rem;color:var(--muted)">${u.email}</div>`:''}
+        ${u.phone?`<div style="font-size:.74rem;color:var(--muted)">${u.phone}</div>`:''}
+      </div>
+      ${p2?`<div style="margin-bottom:.65rem">
+        <div style="font-size:.65rem;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 2</div>
+        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p2}</div>
+        ${u.email2?`<div style="font-size:.74rem;color:var(--muted)">${u.email2}</div>`:''}
+        ${u.phone2?`<div style="font-size:.74rem;color:var(--muted)">${u.phone2}</div>`:''}
+      </div>`:''}
+      ${u.notes?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem">${u.notes}</div>`:''}
+      <div style="margin-top:.75rem;display:flex;gap:.5rem">
+        <button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
+        <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer;font-weight:600">Close</button>
+      </div>`;
+  }
+
+  // Position near clicked button
+  const rect=e.target.getBoundingClientRect();
+  popup.style.top=(rect.bottom+8)+'px';
+  popup.style.left=Math.min(rect.left, window.innerWidth-340)+'px';
+  document.body.appendChild(popup);
+
+  // Auto-close on outside click
+  setTimeout(()=>{
+    const close=ev=>{if(!popup.contains(ev.target)){popup.remove();document.removeEventListener('click',close);}};
+    document.addEventListener('click',close);
+  },100);
+}
+
+function goToUnitsPage(unitNum){
+  const existing=document.getElementById('unitInfoPopup');
+  if(existing) existing.remove();
+  const btn=document.querySelector('#mainNav .nav-btn[onclick*="units"]');
+  showPage('units',btn);
+  setTimeout(()=>{
+    editUnit(unitNum)||(() => {
+      document.getElementById('uoUnit').value=unitNum;
+      document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
+    })();
+  },100);
+}
+
+// ══════════════════════════════════════════
+// UPDATE UNITS JS — support 2nd person
+// ══════════════════════════════════════════
+// Override saveUnit to include 2nd person fields
+function saveUnit(){
+  const unitNum=parseInt(document.getElementById('uoUnit').value);
+  if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
+  const u={
+    unit:unitNum,
+    first:document.getElementById('uoFirst').value.trim(),
+    last:document.getElementById('uoLast').value.trim(),
+    email:document.getElementById('uoEmail').value.trim(),
+    phone:document.getElementById('uoPhone').value.trim(),
+    first2:document.getElementById('uoFirst2')?.value.trim()||'',
+    last2:document.getElementById('uoLast2')?.value.trim()||'',
+    email2:document.getElementById('uoEmail2')?.value.trim()||'',
+    phone2:document.getElementById('uoPhone2')?.value.trim()||'',
+    notes:document.getElementById('uoNotes').value.trim()
+  };
+  units[String(unitNum)]=u;
+  dbSaveUnit(u);
+  renderUnitsTable();
+  clearUnitForm();
+  showToast('Unit '+unitNum+' saved');
+  editingUnit=null;
+}
+
+// Override editUnit to populate 2nd person fields
+function editUnit(unitNum){
+  const u=units[String(unitNum)];
+  if(!u)return false;
+  editingUnit=unitNum;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+  set('uoUnit',u.unit); set('uoFirst',u.first); set('uoLast',u.last);
+  set('uoEmail',u.email); set('uoPhone',u.phone);
+  set('uoFirst2',u.first2); set('uoLast2',u.last2);
+  set('uoEmail2',u.email2); set('uoPhone2',u.phone2);
+  set('uoNotes',u.notes);
+  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
+  document.getElementById('uoSaveBtn').textContent='Update Unit';
+  document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
+  return true;
+}
+
+// Override clearUnitForm for 2nd person fields
+function clearUnitForm(){
+  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoNotes'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.value='';
+  });
+  document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
+  document.getElementById('uoSaveBtn').textContent='Save Unit';
+  editingUnit=null;
+}
+
+// Override renderUnitsTable for 2 people columns
+function renderUnitsTable(){
+  const tbody=document.getElementById('unitsBody');
+  if(!tbody)return;
+  const search=(document.getElementById('unitSearch')?.value||'').toLowerCase();
+  const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
+  const filtered=search?sorted.filter(u=>
+    String(u.unit).includes(search)||
+    (u.first||'').toLowerCase().includes(search)||
+    (u.last||'').toLowerCase().includes(search)||
+    (u.email||'').toLowerCase().includes(search)||
+    (u.first2||'').toLowerCase().includes(search)||
+    (u.last2||'').toLowerCase().includes(search)||
+    (u.email2||'').toLowerCase().includes(search)
+  ):sorted;
+
+  if(!filtered.length){
+    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=filtered.map(u=>{
+    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
+    const p2=[u.first2,u.last2].filter(Boolean).join(' ')||'';
+    return `<tr>
+      <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
+      <td><div style="font-weight:600">${p1}</div>${u.phone?`<div style="font-size:.7rem;color:var(--muted)">${u.phone}</div>`:''}</td>
+      <td style="font-size:.76rem;font-family:var(--mono)">${u.email||'—'}</td>
+      <td style="font-size:.74rem;color:var(--muted)">${u.phone||'—'}</td>
+      <td>${p2?`<div style="font-weight:600">${p2}</div>${u.phone2?`<div style="font-size:.7rem;color:var(--muted)">${u.phone2}</div>`:''}`:'<span style="color:var(--muted);font-size:.74rem">—</span>'}</td>
+      <td style="font-size:.76rem;font-family:var(--mono)">${u.email2||''}</td>
+      <td style="font-size:.74rem;color:var(--muted)">${u.notes||''}</td>
+      <td style="display:flex;gap:.4rem">
+        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
+        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// AUTO-POPULATE INVOICE — both people
+// ══════════════════════════════════════════
+function onInvUnitChange(){
+  const unitNum=parseInt(document.getElementById('invUnit')?.value);
+  if(isNaN(unitNum))return;
+  const owner=getUnitOwner(unitNum);
+  if(owner){
+    const nameEl=document.getElementById('invOwnerName');
+    const emailEl=document.getElementById('invOwnerEmail');
+    const email2El=document.getElementById('invOwnerEmail2');
+    if(nameEl) nameEl.value=[owner.first,owner.last].filter(Boolean).join(' ')||'';
+    if(emailEl) emailEl.value=owner.email||'';
+    if(email2El) email2El.value=owner.email2||'';
+  }
+}
+
+// ══════════════════════════════════════════
+// EMAIL INVOICE via mailto
+// ══════════════════════════════════════════
+function emailInvoice(){
+  if(!previewKey||!previewUnit){showToast('No invoice loaded','#C55A11');return;}
+  const d=months[previewKey];
+  const owner=getUnitOwner(previewUnit);
+  const email1=document.getElementById('invOwnerEmail')?.value||owner?.email||'';
+  const email2=document.getElementById('invOwnerEmail2')?.value||owner?.email2||'';
+  const emails=[email1,email2].filter(Boolean);
+
+  if(!emails.length){
+    showToast('No email address on file for this unit','#C55A11');
+    return;
+  }
+
+  const {wUsage,eUsage,wCharge,eCharge,total,dueDate,fmtDate,invNo,ownerName}=invData(previewKey,previewUnit);
+  const complexName=ps('complex')||'Utility Management';
+  const subject=`Utility Invoice ${invNo} — Unit ${previewUnit} — ${d.label}`;
+  const body=`Dear ${ownerName},
+
+Please find your utility invoice for ${d.label}.
+
+Invoice Number: ${invNo}
+Unit: ${previewUnit}
+Billing Period: ${d.label}
+Due Date: ${fmtDate(dueDate)}
+
+CHARGES SUMMARY
+Water Usage: ${wUsage.toFixed(4)} kl @ R${d.waterRate}/kl = R${(wCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
+Electricity Usage: ${eUsage.toFixed(0)} kWh @ R${d.elecRate}/kWh = R${(eCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
+Total Due: R${total.toLocaleString('en-ZA',{minimumFractionDigits:2})}
+
+Payment is due by ${fmtDate(dueDate)}.
+${ps('bank')?`\nPayment Reference: ${invNo} / Unit ${previewUnit}\nBank: ${ps('bank')}\nAccount: ${ps('accNo')}\nBranch: ${ps('branch')}`:''}
+
+Please contact us if you have any queries.
+
+Kind regards,
+${ps('contact')||complexName}
+${ps('email')||''}
+${ps('phone')||''}`;
+
+  const mailto=`mailto:${emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(mailto,'_blank');
+  showToast('Email client opened for '+emails.join(', '));
+}
 
 </script>
 
