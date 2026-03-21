@@ -281,10 +281,112 @@ tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;l
 .empty-state p{font-size:.83rem;margin-top:.65rem}
 input[type=file]{display:none}
 
+
+/* ═══ MOBILE NAV ═══ */
+#mobileNavBar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:300;
+  background:#1F3864;border-top:1px solid rgba(255,255,255,.1);
+  padding:.5rem .25rem calc(.5rem + env(safe-area-inset-bottom));
+  display:none;justify-content:space-around;align-items:center;
+  box-shadow:0 -4px 18px rgba(10,25,60,.35)}
+.mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:.18rem;
+  background:none;border:none;cursor:pointer;padding:.3rem .5rem;border-radius:8px;
+  color:rgba(255,255,255,.5);font-family:var(--sans);font-size:.52rem;font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;min-width:52px;transition:all .15s}
+.mob-nav-btn .mn-icon{font-size:1.2rem;line-height:1}
+.mob-nav-btn.active{color:#fff;background:rgba(255,255,255,.12)}
+.mob-nav-btn:hover{color:#fff}
+/* Mobile summary cards stack nicely */
+@media(max-width:480px){
+  .mob-nav-btn{min-width:44px;font-size:.48rem}
+  .mob-nav-btn .mn-icon{font-size:1.05rem}
+}
+
+/* ═══ RESPONSIVE BREAKPOINTS ═══ */
+@media(max-width:900px){
+  .charts-2{grid-template-columns:1fr}
+  .dash-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .ins-grid{grid-template-columns:1fr}
+}
+
 @media(max-width:700px){
-  header{padding:0 .9rem}.header-nav{display:none}.shell{padding:1rem .75rem 3rem}
-  .control-bar{grid-template-columns:1fr 1fr}.rec-strip{grid-template-columns:1fr}
-  .charts-2{grid-template-columns:1fr}.compare-selectors{grid-template-columns:1fr}
+  /* Header */
+  header{padding:0 .85rem;height:54px}
+  .header-nav{display:none}
+  .brand-text h1{font-size:.78rem}
+  .brand-text span{display:none}
+  #dbStatus{display:none}
+  .hdr-right{gap:.4rem}
+  .badge{font-size:.62rem;padding:.18rem .55rem}
+  .user-chip .uc-role{display:none}
+
+  /* Shell — extra bottom padding for mobile nav */
+  .shell{padding:.85rem .7rem 5.5rem}
+
+  /* Control bar */
+  .control-bar{grid-template-columns:1fr 1fr;gap:.65rem;padding:.9rem 1rem}
+
+  /* Tabs — horizontal scroll */
+  .tabs-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.25rem;-webkit-overflow-scrolling:touch}
+  .tabs-row::-webkit-scrollbar{height:3px}
+  .tabs-row::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .tab{flex-shrink:0}
+
+  /* Type switcher */
+  .type-sw{gap:.35rem}
+  .type-btn{font-size:.72rem;padding:.32rem .85rem}
+
+  /* Summary strip */
+  .sum-strip{grid-template-columns:1fr 1fr;gap:.65rem}
+  .stat .sv{font-size:1rem}
+
+  /* Tables — horizontal scroll with sticky unit col */
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tw table{min-width:580px}
+  td.ul{position:sticky;left:0;background:#fff;z-index:1;box-shadow:2px 0 4px rgba(0,0,0,.06)}
+  tbody tr:nth-child(even) td.ul{background:var(--sky2)}
+  tbody tr.lr td.ul{background:var(--red-bg)!important}
+  thead th:first-child{position:sticky;left:0;z-index:2;background:var(--navy)}
+
+  /* Cards */
+  .card-head{flex-direction:column;align-items:flex-start;gap:.4rem}
+
+  /* Recovery strip */
+  .rec-strip{grid-template-columns:1fr}
+  .rc-val{font-size:1.3rem}
+
+  /* Billing grid */
+  .billing-grid{grid-template-columns:1fr}
+
+  /* Compare */
+  .compare-selectors{grid-template-columns:1fr}
+  .cmp-grid{grid-template-columns:1fr 1fr}
+
+  /* Dashboard */
+  .dash-grid{grid-template-columns:1fr 1fr}
+  .ytd-grid{grid-template-columns:1fr 1fr}
+  .charts-2{grid-template-columns:1fr}
+  .ds .dv{font-size:1.35rem}
+
+  /* Admin */
+  .admin-grid{grid-template-columns:1fr}
+
+  /* Invoice */
+  .inv-grid{grid-template-columns:1fr}
+
+  /* Buttons */
+  .exp-row{gap:.5rem}
+  .btn-exp,.btn-ghost{font-size:.74rem;padding:.5rem .9rem}
+
+  /* Auth card */
+  .auth-card{padding:2rem 1.5rem}
+}
+
+@media(max-width:400px){
+  .sum-strip{grid-template-columns:1fr}
+  .dash-grid{grid-template-columns:1fr}
+  .ytd-grid{grid-template-columns:1fr}
+  .cmp-grid{grid-template-columns:1fr}
+  .control-bar{grid-template-columns:1fr}
 }
 
 /* ═══ AUTH ═══ */
@@ -333,6 +435,14 @@ input[type=file]{display:none}
 .um-add-form input,.um-add-form select{padding:.42rem .68rem;border:1.5px solid var(--border);
   border-radius:7px;font-family:var(--mono);font-size:.82rem;width:100%;background:#fff}
 .um-add-form input:focus,.um-add-form select:focus{outline:none;border-color:var(--blue)}
+
+/* UNITS PAGE */
+#unitsTable td{padding:.42rem .75rem;vertical-align:middle}
+#unitsTable td input{width:100%;padding:.22rem .42rem;border:1.5px solid transparent;border-radius:4px;
+  font-family:var(--mono);font-size:.76rem;background:transparent;transition:border-color .12s}
+#unitsTable td input:hover{border-color:var(--border);background:var(--off)}
+#unitsTable td input:focus{outline:none;border-color:var(--blue);background:#fff;
+  box-shadow:0 0 0 3px rgba(46,117,182,.1)}
 </style>
 </head>
 <body>
@@ -353,6 +463,7 @@ input[type=file]{display:none}
   </div>
   <div class="header-nav" id="mainNav">
     <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Data Entry</button>
+    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('units',this)">Units</button>
     <button class="nav-btn" data-roles="admin,billing" onclick="showPage('billing',this)">Billing</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('compare',this)">Compare</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
@@ -464,7 +575,7 @@ input[type=file]{display:none}
           <option value="">-- choose month --</option>
         </select></div>
       <div class="inv-field"><label>Select Unit</label>
-        <select id="invUnit">
+        <select id="invUnit" onchange="onInvUnitChange()">
           <option value="">-- choose unit --</option>
         </select></div>
       <div class="inv-field"><label>Owner Name</label><input type="text" id="invOwnerName" placeholder="Owner / tenant name"></div>
@@ -482,6 +593,66 @@ input[type=file]{display:none}
 </div>
 
 <!-- ═══════════════ ADMIN ═══════════════ -->
+
+<!-- ═══════════════ UNITS ═══════════════ -->
+<div id="page-units" class="page">
+  <div class="admin-card" style="margin-bottom:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem">
+      <h3>Unit Directory</h3>
+      <div style="display:flex;gap:.65rem;align-items:center;flex-wrap:wrap">
+        <input type="text" id="unitSearch" placeholder="Search units or owners..." oninput="renderUnitsTable()"
+          style="padding:.4rem .75rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.82rem;width:220px">
+        <button class="btn-exp" onclick="exportUnitsExcel()">Export Units</button>
+      </div>
+    </div>
+    <div class="tw"><table class="um-table" id="unitsTable">
+      <thead><tr>
+        <th style="width:80px">Unit #</th>
+        <th>Owner Name</th>
+        <th>Surname</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Notes</th>
+        <th style="width:80px">Actions</th>
+      </tr></thead>
+      <tbody id="unitsBody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="admin-card">
+    <h3 id="unitFormTitle" style="margin-bottom:1rem">Add / Edit Unit Owner</h3>
+    <div class="um-add-form" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Unit Number</label>
+        <input type="number" id="uoUnit" placeholder="e.g. 1" min="1">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">First Name</label>
+        <input type="text" id="uoFirst" placeholder="First name">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Surname</label>
+        <input type="text" id="uoLast" placeholder="Surname">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Email</label>
+        <input type="text" id="uoEmail" placeholder="owner@email.com">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Phone</label>
+        <input type="text" id="uoPhone" placeholder="+27 82 000 0000">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Notes</label>
+        <input type="text" id="uoNotes" placeholder="e.g. Tenant, landlord...">
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:flex-end">
+        <button class="btn-exp" onclick="saveUnit()" id="uoSaveBtn">Save Unit</button>
+        <button class="btn-ghost" onclick="clearUnitForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="page-admin" class="page">
   <div class="section-hdr">Database Management</div>
   <div class="admin-grid">
@@ -584,7 +755,6 @@ input[type=file]{display:none}
         <div class="inv-field"><label>Account Number</label><input type="text" id="invAccNo" placeholder="1234567890"></div>
         <div class="inv-field"><label>Branch Code</label><input type="text" id="invBranch" placeholder="250655"></div>
         <div class="inv-field"><label>Account Type</label><input type="text" id="invAccType" placeholder="Cheque / Current"></div>
-        <div class="inv-field"><label>Payment Due (days)</label><input type="number" id="invDueDays" value="30"></div>
         <div class="inv-field"><label>VAT Number (optional)</label><input type="text" id="invVAT" placeholder="4XXXXXXXXX"></div>
       </div>
       <div style="display:flex;gap:.65rem">
@@ -597,6 +767,29 @@ input[type=file]{display:none}
 
 </div><!-- /shell -->
 <div id="toast"></div>
+
+<!-- MOBILE BOTTOM NAV -->
+<nav id="mobileNavBar" role="navigation" aria-label="Mobile navigation">
+  <button class="mob-nav-btn active" data-page="data-entry" onclick="mobNav('data-entry',this)">
+    <span class="mn-icon">📋</span>Entry
+  </button>
+  <button class="mob-nav-btn" data-page="billing" onclick="mobNav('billing',this)" data-roles="admin,billing">
+    <span class="mn-icon">🏛</span>Billing
+  </button>
+  <button class="mob-nav-btn" data-page="dashboard" onclick="mobNav('dashboard',this)">
+    <span class="mn-icon">📊</span>Dash
+  </button>
+  <button class="mob-nav-btn" data-page="compare" onclick="mobNav('compare',this)">
+    <span class="mn-icon">🔀</span>Compare
+  </button>
+  <button class="mob-nav-btn" data-page="invoices" onclick="mobNav('invoices',this)" data-roles="admin,billing">
+    <span class="mn-icon">🧾</span>Invoices
+  </button>
+  <button class="mob-nav-btn" data-page="admin" onclick="mobNav('admin',this)" data-roles="admin">
+    <span class="mn-icon">⚙️</span>Admin
+  </button>
+</nav>
+
 <input type="file" id="importReadingsFile2" accept=".xlsx,.xls" style="display:none">
 
 <script>
@@ -605,7 +798,7 @@ const months={};
 let activeKey=null, activeType='water', charts={};
 
 // ═══════════════ INDEXEDDB ═══════════════
-const DB_NAME='MeterReadingsDB', DB_VER=3, STORE='months';
+const DB_NAME='MeterReadingsDB', DB_VER=4, STORE='months';
 let db=null;
 
 function openDB(){
@@ -616,6 +809,7 @@ function openDB(){
       if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'key'});
       if(!d.objectStoreNames.contains('propSettings')) d.createObjectStore('propSettings',{keyPath:'key'});
       if(!d.objectStoreNames.contains('users')) d.createObjectStore('users',{keyPath:'username'});
+      if(!d.objectStoreNames.contains('unitOwners')) d.createObjectStore('unitOwners',{keyPath:'unit'});
     };
     req.onsuccess=e=>{db=e.target.result;res(db);};
     req.onerror=e=>rej(e.target.error);
@@ -660,6 +854,7 @@ async function init(){
     if(!existingUsers.length) dbSaveUser(DEFAULT_ADMIN);
 
     await loadPropFromDB();
+    await loadUnitsFromDB();
     updateHeaderComplex();
     // Update auth overlay subtitle with complex name
     const sub=document.getElementById('authComplexSub');
@@ -692,10 +887,10 @@ function showPage(id,btn){
   // Role guard — skip if not logged in yet
   if(currentUser){
     const allowed={
-      admin:['data-entry','billing','compare','dashboard','invoices','admin'],
-      entry:['data-entry','compare','dashboard'],
-      billing:['data-entry','billing','compare','dashboard','invoices'],
-      readonly:['data-entry','compare','dashboard']
+      admin:['data-entry','units','billing','compare','dashboard','invoices','admin'],
+      entry:['data-entry','units','compare','dashboard'],
+      billing:['data-entry','units','billing','compare','dashboard','invoices'],
+      readonly:['data-entry','units','compare','dashboard']
     }[currentUser.role]||[];
     if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
   }
@@ -708,6 +903,7 @@ function showPage(id,btn){
   if(id==='compare')renderComparePage();
   if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
   if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
+  if(id==='units')renderUnitsTable();
 }
 
 // ═══════════════ MONTH MANAGEMENT ═══════════════
@@ -1334,7 +1530,7 @@ function makeSection(title){
 // ═══════════════ PROPERTY SETTINGS ═══════════════
 let propSettings={
   complex:'',addr1:'',addr2:'',contact:'',email:'',phone:'',
-  bank:'',accNo:'',branch:'',accType:'',dueDays:'30',vat:''
+  bank:'',accNo:'',branch:'',accType:'',vat:''
 };
 const PROP_STORE='propSettings';
 
@@ -1380,7 +1576,7 @@ function renderPropDisplayGrid(){
     ['Contact / Manager',ps('contact')||'—'],['Email',ps('email')||'—'],
     ['Phone',ps('phone')||'—'],['Bank',ps('bank')||'—'],
     ['Account Number',ps('accNo')||'—'],['Branch Code',ps('branch')||'—'],
-    ['Account Type',ps('accType')||'—'],['Payment Due',ps('dueDays')?ps('dueDays')+' days':'30 days'],
+    ['Account Type',ps('accType')||'—'],
     ['VAT Number',ps('vat')||'None'],
   ];
   grid.innerHTML=fields.map(([l,v])=>`
@@ -1396,7 +1592,7 @@ function togglePropEdit(){
   const btn=document.getElementById('propEditBtn');
   if(edit.style.display==='none'){
     // populate fields
-    const fields=['complex','addr1','addr2','contact','email','phone','bank','accNo','branch','accType','dueDays','vat'];
+    const fields=['complex','addr1','addr2','contact','email','phone','bank','accNo','branch','accType','vat'];
     fields.forEach(f=>{const el=document.getElementById('inv'+f.charAt(0).toUpperCase()+f.slice(1));if(el)el.value=propSettings[f]||'';});
     edit.style.display='block';view.style.display='none';
     btn.textContent='Cancel';
@@ -1455,8 +1651,23 @@ function populateInvUnits(){
   uSel.innerHTML='<option value="">-- choose unit --</option>';
   if(!key||!months[key])return;
   months[key].water.forEach(r=>{
-    const o=document.createElement('option'); o.value=r.unit; o.textContent='Unit '+r.unit; uSel.appendChild(o);
+    const owner=getUnitOwner(r.unit);
+    const label=owner?'Unit '+r.unit+' — '+[owner.first,owner.last].filter(Boolean).join(' '):'Unit '+r.unit;
+    const o=document.createElement('option'); o.value=r.unit; o.textContent=label; uSel.appendChild(o);
   });
+}
+
+function onInvUnitChange(){
+  populateInvUnits();
+  const unitNum=parseInt(document.getElementById('invUnit')?.value);
+  if(isNaN(unitNum))return;
+  const owner=getUnitOwner(unitNum);
+  if(owner){
+    const nameEl=document.getElementById('invOwnerName');
+    const emailEl=document.getElementById('invOwnerEmail');
+    if(nameEl&&!nameEl.value) nameEl.value=[owner.first,owner.last].filter(Boolean).join(' ');
+    if(emailEl&&!emailEl.value) emailEl.value=owner.email||'';
+  }
 }
 
 let previewKey=null, previewUnit=null;
@@ -1503,11 +1714,13 @@ function invData(key,unitNum){
   const eCharge=eUsage*d.elecRate;
   const total=wCharge+eCharge;
   const invoiceDate=new Date();
-  const dueDays=parseInt(ps('dueDays'))||30;
-  const dueDate=new Date(invoiceDate.getTime()+dueDays*86400000);
+  // Due date = 1st of next month
+  const dueDate=new Date(invoiceDate.getFullYear(), invoiceDate.getMonth()+1, 1);
   const fmtDate=dt=>dt.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
-  const ownerName=document.getElementById('invOwnerName')?.value||'Unit '+unitNum+' Owner';
-  const ownerEmail=document.getElementById('invOwnerEmail')?.value||'';
+  const _owner=getUnitOwner(unitNum);
+  const ownerName=document.getElementById('invOwnerName')?.value||(_owner?[_owner.first,_owner.last].filter(Boolean).join(' '):'')||'Unit '+unitNum+' Owner';
+  const ownerEmail=document.getElementById('invOwnerEmail')?.value||(_owner?_owner.email:'')||'';
+  const ownerPhone=_owner?_owner.phone:'';
   const invNo=document.getElementById('invNumber')?.value||'INV-'+d.year+d.month+'-'+String(unitNum).padStart(3,'0');
   return {d,wRow,eRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,
     invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo};
@@ -2085,6 +2298,218 @@ async function deleteUser(username){
 }
 
 // renderUMTable is called from renderAdminStatus directly
+
+
+// ═══════════════ MOBILE NAV ═══════════════
+function isMobile(){return window.innerWidth<=700;}
+
+function showMobileNav(){
+  const nav=document.getElementById('mobileNavBar');
+  if(!nav)return;
+  nav.style.display=isMobile()?'flex':'none';
+}
+
+function mobNav(id,btn){
+  // Update mobile nav active state
+  document.querySelectorAll('.mob-nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  // Sync desktop nav too
+  const deskBtn=document.querySelector(`#mainNav .nav-btn[onclick*="${id}"]`);
+  showPage(id,deskBtn||btn);
+  // Scroll to top smoothly
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function syncMobileNav(id){
+  document.querySelectorAll('.mob-nav-btn').forEach(b=>{
+    b.classList.toggle('active',b.getAttribute('data-page')===id);
+  });
+}
+
+function applyMobileNavRoles(){
+  if(!currentUser)return;
+  const allowed={
+    admin:['data-entry','billing','compare','dashboard','invoices','admin'],
+    entry:['data-entry','compare','dashboard'],
+    billing:['data-entry','billing','compare','dashboard','invoices'],
+    readonly:['data-entry','compare','dashboard']
+  }[currentUser.role]||[];
+  document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
+    const page=btn.getAttribute('data-page');
+    btn.style.display=allowed.includes(page)?'':'none';
+  });
+}
+
+// Sync mobile nav when desktop showPage is called
+const _origShowPageMob=showPage;
+showPage=function(id,btn){
+  _origShowPageMob(id,btn);
+  syncMobileNav(id);
+};
+
+// Show/hide mobile nav on resize
+window.addEventListener('resize',showMobileNav);
+showMobileNav();
+
+// Extend applyAuth to set up mobile nav
+const _origApplyAuth=applyAuth;
+applyAuth=function(){
+  _origApplyAuth();
+  showMobileNav();
+  applyMobileNavRoles();
+};
+
+// Add PWA meta tags dynamically
+(function addPWAMeta(){
+  const metas=[
+    {name:'mobile-web-app-capable',content:'yes'},
+    {name:'apple-mobile-web-app-capable',content:'yes'},
+    {name:'apple-mobile-web-app-status-bar-style',content:'black-translucent'},
+    {name:'apple-mobile-web-app-title',content:'Meter Readings'},
+    {name:'theme-color',content:'#1F3864'},
+  ];
+  metas.forEach(({name,content})=>{
+    const m=document.createElement('meta');
+    m.name=name;m.content=content;
+    document.head.appendChild(m);
+  });
+})();
+
+
+
+// ═══════════════════════════════════════════════════════════
+// UNIT OWNER MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+const UNITS_STORE='unitOwners';
+let units={}; // key: unitNum (string) → {unit,first,last,email,phone,notes}
+let editingUnit=null;
+
+function dbSaveUnit(u){
+  if(!db)return;
+  db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(u);
+}
+function dbDeleteUnit(unitNum){
+  if(!db)return;
+  db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(String(unitNum));
+}
+function dbLoadAllUnits(){
+  return new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+}
+
+async function loadUnitsFromDB(){
+  const saved=await dbLoadAllUnits();
+  saved.forEach(u=>{ units[String(u.unit)]=u; });
+}
+
+function getUnitOwner(unitNum){
+  return units[String(unitNum)]||null;
+}
+
+function renderUnitsTable(){
+  const tbody=document.getElementById('unitsBody');
+  if(!tbody)return;
+  const search=(document.getElementById('unitSearch')?.value||'').toLowerCase();
+  const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
+  const filtered=search?sorted.filter(u=>
+    String(u.unit).includes(search)||
+    (u.first||'').toLowerCase().includes(search)||
+    (u.last||'').toLowerCase().includes(search)||
+    (u.email||'').toLowerCase().includes(search)||
+    (u.phone||'').toLowerCase().includes(search)
+  ):sorted;
+
+  if(!filtered.length){
+    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet — use the form below'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=filtered.map(u=>`
+    <tr>
+      <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
+      <td>${u.first||'—'}</td>
+      <td>${u.last||'—'}</td>
+      <td style="font-family:var(--mono);font-size:.76rem">${u.email||'—'}</td>
+      <td style="font-family:var(--mono);font-size:.76rem">${u.phone||'—'}</td>
+      <td style="font-size:.76rem;color:var(--muted)">${u.notes||''}</td>
+      <td style="display:flex;gap:.4rem">
+        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
+        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
+      </td>
+    </tr>`).join('');
+}
+
+function saveUnit(){
+  const unitNum=parseInt(document.getElementById('uoUnit').value);
+  if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
+  const u={
+    unit:unitNum,
+    first:document.getElementById('uoFirst').value.trim(),
+    last:document.getElementById('uoLast').value.trim(),
+    email:document.getElementById('uoEmail').value.trim(),
+    phone:document.getElementById('uoPhone').value.trim(),
+    notes:document.getElementById('uoNotes').value.trim()
+  };
+  units[String(unitNum)]=u;
+  dbSaveUnit(u);
+  renderUnitsTable();
+  clearUnitForm();
+  showToast('Unit '+(editingUnit||unitNum)+' saved');
+  editingUnit=null;
+}
+
+function editUnit(unitNum){
+  const u=units[String(unitNum)];
+  if(!u)return;
+  editingUnit=unitNum;
+  document.getElementById('uoUnit').value=u.unit;
+  document.getElementById('uoFirst').value=u.first||'';
+  document.getElementById('uoLast').value=u.last||'';
+  document.getElementById('uoEmail').value=u.email||'';
+  document.getElementById('uoPhone').value=u.phone||'';
+  document.getElementById('uoNotes').value=u.notes||'';
+  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
+  document.getElementById('uoSaveBtn').textContent='Update Unit';
+  document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function removeUnit(unitNum){
+  if(!confirm('Remove owner data for Unit '+unitNum+'?'))return;
+  delete units[String(unitNum)];
+  dbDeleteUnit(unitNum);
+  renderUnitsTable();
+  showToast('Unit '+unitNum+' removed','#C55A11');
+}
+
+function clearUnitForm(){
+  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoNotes'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.value='';
+  });
+  document.getElementById('unitFormTitle').textContent='Add / Edit Unit Owner';
+  document.getElementById('uoSaveBtn').textContent='Save Unit';
+  editingUnit=null;
+}
+
+function exportUnitsExcel(){
+  const wb=XLSX.utils.book_new();
+  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','Notes'];
+  const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
+    u.unit, u.first||'', u.last||'',
+    [u.first,u.last].filter(Boolean).join(' ')||'',
+    u.email||'', u.phone||'', u.notes||''
+  ]);
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=[8,14,14,20,28,16,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
+  XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast('Unit directory exported');
+}
+
+// Inject showPage handler for units page
+const _baseShowPage=showPage;
 
 </script>
 
