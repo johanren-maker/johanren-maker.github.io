@@ -286,6 +286,53 @@ input[type=file]{display:none}
   .control-bar{grid-template-columns:1fr 1fr}.rec-strip{grid-template-columns:1fr}
   .charts-2{grid-template-columns:1fr}.compare-selectors{grid-template-columns:1fr}
 }
+
+/* ═══ AUTH ═══ */
+#authOverlay{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#0D1B3E 0%,#1F3864 60%,#2A4A82 100%);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;padding:1.5rem}
+.auth-card{background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:380px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.auth-logo{width:52px;height:52px;background:var(--blue);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem}
+.auth-card h2{font-size:1.15rem;font-weight:800;color:var(--navy);text-align:center;margin-bottom:.3rem}
+.auth-card .auth-sub{font-size:.76rem;color:var(--muted);text-align:center;margin-bottom:1.75rem}
+.auth-field{margin-bottom:1rem}
+.auth-field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);margin-bottom:.3rem}
+.auth-field input{width:100%;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:8px;
+  font-family:var(--sans);font-size:.92rem;color:var(--text);background:var(--off);transition:border-color .15s}
+.auth-field input:focus{outline:none;border-color:var(--blue);background:#fff;
+  box-shadow:0 0 0 3px rgba(46,117,182,.15)}
+.auth-btn{width:100%;padding:.72rem;background:var(--navy);color:#fff;border:none;border-radius:8px;
+  font-family:var(--sans);font-weight:700;font-size:.9rem;cursor:pointer;margin-top:.5rem;
+  transition:background .15s,transform .1s}
+.auth-btn:hover{background:var(--blue);transform:translateY(-1px)}
+.auth-error{background:var(--red-bg);color:var(--red);border-radius:6px;padding:.55rem .85rem;
+  font-size:.78rem;font-weight:600;margin-top:.75rem;text-align:center;display:none}
+.auth-footer{color:rgba(255,255,255,.4);font-size:.68rem;margin-top:1.5rem;text-align:center}
+/* USER CHIP in header */
+.user-chip{display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:.22rem .7rem .22rem .45rem;cursor:pointer}
+.user-chip .uc-avatar{width:22px;height:22px;border-radius:50%;background:var(--blue);
+  display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff}
+.user-chip .uc-name{font-size:.7rem;font-weight:600;color:rgba(255,255,255,.9)}
+.user-chip .uc-role{font-size:.6rem;color:rgba(255,255,255,.55)}
+/* ROLE BADGE */
+.role-pill{display:inline-block;padding:.15rem .55rem;border-radius:12px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.role-pill.admin{background:rgba(31,56,100,.12);color:var(--navy)}
+.role-pill.entry{background:rgba(46,117,182,.12);color:var(--blue)}
+.role-pill.billing{background:rgba(197,90,17,.12);color:var(--orange)}
+.role-pill.readonly{background:rgba(90,112,153,.12);color:var(--muted)}
+/* USER MANAGEMENT */
+.um-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.75rem}
+.um-table th{background:var(--navy);color:#fff;padding:.5rem .75rem;text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em}
+.um-table td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+.um-table tr:nth-child(even) td{background:var(--sky2)}
+.um-add-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;
+  padding:1rem;background:var(--sky2);border-radius:8px;margin-top:1rem;align-items:end}
+.um-add-form input,.um-add-form select{padding:.42rem .68rem;border:1.5px solid var(--border);
+  border-radius:7px;font-family:var(--mono);font-size:.82rem;width:100%;background:#fff}
+.um-add-form input:focus,.um-add-form select:focus{outline:none;border-color:var(--blue)}
 </style>
 </head>
 <body>
@@ -304,17 +351,22 @@ input[type=file]{display:none}
       <h1>Utility Meter Readings</h1>
     </div>
   </div>
-  <div class="header-nav">
-    <button class="nav-btn active" onclick="showPage('data-entry',this)">📋 Data Entry</button>
-    <button class="nav-btn" onclick="showPage('billing',this)">🏛 Billing</button>
-    <button class="nav-btn" onclick="showPage('compare',this)">🔀 Compare</button>
-    <button class="nav-btn" onclick="showPage('dashboard',this)">📊 Dashboard</button>
-    <button class="nav-btn" onclick="showPage('invoices',this)">🧾 Invoices</button>
-    <button class="nav-btn" onclick="showPage('admin',this)">⚙️ Admin</button>
+  <div class="header-nav" id="mainNav">
+    <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Data Entry</button>
+    <button class="nav-btn" data-roles="admin,billing" onclick="showPage('billing',this)">Billing</button>
+    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('compare',this)">Compare</button>
+    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button class="nav-btn" data-roles="admin,billing" onclick="showPage('invoices',this)">Invoices</button>
+    <button class="nav-btn" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
   </div>
   <div class="hdr-right">
     <span id="dbStatus">● DB…</span>
     <div class="badge" id="activeBadge">No month selected</div>
+    <div class="user-chip" onclick="showUserMenu()" id="userChip" style="display:none">
+      <div class="uc-avatar" id="userAvatar">?</div>
+      <div><div class="uc-name" id="userChipName">–</div>
+        <div class="uc-role" id="userChipRole">–</div></div>
+    </div>
   </div>
 </header>
 
@@ -434,7 +486,7 @@ input[type=file]{display:none}
   <div class="section-hdr">Database Management</div>
   <div class="admin-grid">
     <div class="admin-card">
-      <h3>📤 Export Database</h3>
+      <h3>&#x1F4E4; Export Database</h3>
       <p>Download a full backup of all months, readings and billing data as a JSON file. Use this to transfer data between browsers or computers.</p>
       <div class="btn-row">
         <button class="btn-exp" onclick="exportDB()">
@@ -475,8 +527,40 @@ input[type=file]{display:none}
 
   <div class="section-hdr">Database Status</div>
   <div class="admin-card" id="adminStatus" style="max-width:600px">
-    <h3>ℹ️ Current Status</h3>
+    <h3>&#x2139;&#xFE0F; Current Status</h3>
     <div id="adminStatusBody"><p style="font-size:.78rem;color:var(--muted)">Loading...</p></div>
+  </div>
+
+  <div class="section-hdr">User Management</div>
+  <div class="admin-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+      <h3 style="margin-bottom:0">System Users</h3>
+      <span style="font-size:.72rem;color:var(--muted)">Passwords are hashed — not stored in plain text</span>
+    </div>
+    <div class="tw"><table class="um-table" id="umTable">
+      <thead><tr>
+        <th>Username</th><th>Display Name</th><th>Role</th><th>Last Login</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="umBody"></tbody>
+    </table></div>
+    <div class="um-add-form" id="umAddForm">
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Username</label>
+        <input type="text" id="umNewUser" placeholder="e.g. jsmith"></div>
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Display Name</label>
+        <input type="text" id="umNewName" placeholder="e.g. John Smith"></div>
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Password</label>
+        <input type="password" id="umNewPass" placeholder="Password"></div>
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Role</label>
+        <select id="umNewRole">
+          <option value="admin">Admin — Full access</option>
+          <option value="entry">Data Entry — Enter readings</option>
+          <option value="billing">Billing — Billing &amp; invoices</option>
+          <option value="readonly">Read Only — View &amp; dashboard</option>
+        </select></div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn-exp" onclick="addUser()" style="white-space:nowrap">Add User</button>
+      </div>
+    </div>
   </div>
 
   <div class="section-hdr">Property / Complex Details</div>
@@ -521,7 +605,7 @@ const months={};
 let activeKey=null, activeType='water', charts={};
 
 // ═══════════════ INDEXEDDB ═══════════════
-const DB_NAME='MeterReadingsDB', DB_VER=2, STORE='months';
+const DB_NAME='MeterReadingsDB', DB_VER=3, STORE='months';
 let db=null;
 
 function openDB(){
@@ -531,6 +615,7 @@ function openDB(){
       const d=e.target.result;
       if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'key'});
       if(!d.objectStoreNames.contains('propSettings')) d.createObjectStore('propSettings',{keyPath:'key'});
+      if(!d.objectStoreNames.contains('users')) d.createObjectStore('users',{keyPath:'username'});
     };
     req.onsuccess=e=>{db=e.target.result;res(db);};
     req.onerror=e=>rej(e.target.error);
@@ -555,6 +640,11 @@ function dbLoadAll(){
 
 // ═══════════════ INIT ═══════════════
 async function init(){
+  // Hide main content until authenticated
+  document.querySelector('.shell').style.display='none';
+  document.querySelector('header').style.opacity='0.3';
+  document.querySelector('header').style.pointerEvents='none';
+
   const sy=document.getElementById('selYear');
   const now=new Date();
   for(let y=now.getFullYear()-2;y<=now.getFullYear()+2;y++){
@@ -565,12 +655,20 @@ async function init(){
   document.getElementById('selMonth').value=String(now.getMonth()+1).padStart(2,'0');
   try{
     await openDB();
+    // Seed default admin if no users exist
+    const existingUsers=await dbGetAllUsers();
+    if(!existingUsers.length) dbSaveUser(DEFAULT_ADMIN);
+
     await loadPropFromDB();
     updateHeaderComplex();
+    // Update auth overlay subtitle with complex name
+    const sub=document.getElementById('authComplexSub');
+    if(sub&&propSettings.complex) sub.textContent=propSettings.complex+' — Please sign in';
+
     const saved=await dbLoadAll();
     saved.forEach(rec=>{ const{key,...data}=rec; months[key]=data; });
     const keys=Object.keys(months).sort();
-    if(keys.length){ renderTabs(); activateTab(keys[keys.length-1]); showToast(`Loaded ${keys.length} month${keys.length>1?'s':''} from local DB`,'var(--blue)'); }
+    if(keys.length){ renderTabs(); activateTab(keys[keys.length-1]); }
     document.getElementById('dbStatus').textContent='● DB Connected';
     document.getElementById('dbStatus').style.color='#7EC8E3';
   }catch(err){
@@ -578,6 +676,14 @@ async function init(){
     document.getElementById('dbStatus').style.color='#F5AAAA';
   }
   populateInvMonths();
+
+  // Check for existing session
+  const session=loadSession();
+  if(session){
+    currentUser=session;
+    applyAuth();
+  }
+  // else: overlay stays visible, user must log in
 }
 init();
 
@@ -657,7 +763,11 @@ function renderEntryContent(){
   renderSumStrip(ec); renderDataTable(ec); renderExpRow(ec);
 }
 
-function switchType(t){activeType=t;renderEntryContent();}
+function switchType(t){activeType=t;renderEntryContent();
+  if(currentUser&&currentUser.role==='readonly'){
+    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
+  }
+}
 
 function renderSumStrip(c){
   const d=months[activeKey];
@@ -739,6 +849,7 @@ function renderDataTable(c){
 }
 
 function upRow(key,type,idx,field,value){
+  if(currentUser&&currentUser.role==='readonly'){showToast('Read-only access','#C55A11');return;}
   if(field==='flagLeak'){
     months[key][type][idx].flagLeak=(value==='leak');
     if(value&&value!=='leak') months[key][type][idx].notes=
@@ -1779,6 +1890,237 @@ function showToast(msg,color='var(--green)'){
   const t=document.getElementById('toast');t.textContent=msg;t.style.background=color;
   t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// AUTH SYSTEM
+// ═══════════════════════════════════════════════════════════
+const USER_STORE='users';
+let currentUser=null; // {username, name, role}
+
+// Simple hash — SHA-256 via Web Crypto
+async function hashPwd(pwd){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Default admin seeded on first run
+const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
+  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // 'admin'
+  lastLogin:null};
+
+// ── DB helpers for users store ──
+function dbSaveUser(u){
+  if(!db)return;
+  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u);
+}
+function dbDeleteUser(username){
+  if(!db)return;
+  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username);
+}
+function dbGetAllUsers(){
+  return new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+}
+
+// ── Session (sessionStorage — clears on tab close) ──
+function saveSession(user){
+  sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role}));
+}
+function loadSession(){
+  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
+}
+function clearSession(){
+  sessionStorage.removeItem('mra_session');
+}
+
+// ── Login flow ──
+async function doLogin(){
+  const username=document.getElementById('authUser').value.trim().toLowerCase();
+  const password=document.getElementById('authPass').value;
+  const errEl=document.getElementById('authError');
+  errEl.style.display='none';
+  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
+
+  const users=await dbGetAllUsers();
+  const user=users.find(u=>u.username===username);
+  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+
+  const hash=await hashPwd(password);
+  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+
+  // Success
+  user.lastLogin=new Date().toISOString();
+  dbSaveUser(user);
+  currentUser={username:user.username,name:user.name,role:user.role};
+  saveSession(currentUser);
+  applyAuth();
+}
+
+function doLogout(){
+  clearSession();
+  currentUser=null;
+  document.getElementById('authOverlay').style.display='flex';
+  document.getElementById('authUser').value='';
+  document.getElementById('authPass').value='';
+  document.getElementById('authError').style.display='none';
+  document.getElementById('userChip').style.display='none';
+  // hide main content
+  document.querySelector('header').style.opacity='0.3';
+  document.querySelector('header').style.pointerEvents='none';
+  document.querySelector('.shell').style.display='none';
+}
+
+function applyAuth(){
+  if(!currentUser)return;
+  // Hide overlay
+  document.getElementById('authOverlay').style.display='none';
+  document.querySelector('header').style.opacity='';
+  document.querySelector('header').style.pointerEvents='';
+  document.querySelector('.shell').style.display='';
+
+  // Update user chip
+  const chip=document.getElementById('userChip');
+  chip.style.display='flex';
+  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
+  document.getElementById('userChipName').textContent=currentUser.name;
+  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
+
+  // Show/hide nav buttons based on role
+  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
+    const roles=btn.getAttribute('data-roles')||'';
+    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
+  });
+
+  // Navigate to first visible page
+  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
+  if(first) first.click();
+
+  // Restrict data entry fields for readonly
+  if(currentUser.role==='readonly'){
+    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
+  }
+
+  renderUMTable();
+}
+
+const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
+const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
+
+function showUserMenu(){
+  if(!confirm(`Signed in as ${currentUser.name} (${ROLE_LABELS[currentUser.role]})
+
+Click OK to sign out.`))return;
+  doLogout();
+}
+
+// ── Guard showPage for role ──
+const _origShowPage=showPage;
+function showPage(id,btn){
+  if(currentUser){
+    const allowed={
+      admin:['data-entry','billing','compare','dashboard','invoices','admin'],
+      entry:['data-entry','compare','dashboard'],
+      billing:['data-entry','billing','compare','dashboard','invoices'],
+      readonly:['data-entry','compare','dashboard']
+    }[currentUser.role]||[];
+    if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
+  }
+  _origShowPage(id,btn);
+}
+
+// ── User Management ──
+async function renderUMTable(){
+  const tbody=document.getElementById('umBody');
+  if(!tbody)return;
+  const users=await dbGetAllUsers();
+  tbody.innerHTML=users.map(u=>`
+    <tr>
+      <td style="font-family:var(--mono);font-weight:600">${u.username}</td>
+      <td>${u.name}</td>
+      <td><span class="role-pill ${ROLE_COLORS[u.role]}">${ROLE_LABELS[u.role]||u.role}</span></td>
+      <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Never'}</td>
+      <td style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button onclick="resetPassword('${u.username}')" style="font-size:.7rem;padding:.25rem .6rem;border:1.5px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-family:var(--sans);font-weight:600">Reset PW</button>
+        ${u.username!=='admin'&&u.username!==currentUser?.username?`<button onclick="deleteUser('${u.username}')" style="font-size:.7rem;padding:.25rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Remove</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+
+async function addUser(){
+  const username=document.getElementById('umNewUser').value.trim().toLowerCase();
+  const name=document.getElementById('umNewName').value.trim();
+  const password=document.getElementById('umNewPass').value;
+  const role=document.getElementById('umNewRole').value;
+  if(!username||!name||!password){showToast('Fill in all fields','#C55A11');return;}
+  const users=await dbGetAllUsers();
+  if(users.find(u=>u.username===username)){showToast('Username already exists','#C55A11');return;}
+  const hash=await hashPwd(password);
+  dbSaveUser({username,name,role,hash,lastLogin:null});
+  document.getElementById('umNewUser').value='';
+  document.getElementById('umNewName').value='';
+  document.getElementById('umNewPass').value='';
+  showToast('User added: '+name);
+  setTimeout(renderUMTable,200);
+}
+
+async function resetPassword(username){
+  const newPwd=prompt('Enter new password for '+username+':');
+  if(!newPwd)return;
+  const users=await dbGetAllUsers();
+  const user=users.find(u=>u.username===username);
+  if(!user)return;
+  user.hash=await hashPwd(newPwd);
+  dbSaveUser(user);
+  showToast('Password reset for '+username);
+}
+
+async function deleteUser(username){
+  if(!confirm('Remove user "'+username+'"? This cannot be undone.'))return;
+  dbDeleteUser(username);
+  showToast('User removed','#C55A11');
+  setTimeout(renderUMTable,200);
+}
+
+// ── Override renderAdminStatus to also refresh user table ──
+const _origRenderAdmin=renderAdminStatus;
+function renderAdminStatus(){
+  _origRenderAdmin();
+  renderUMTable();
+}
+
 </script>
+
+<!-- AUTH OVERLAY -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <path d="M4 20 Q6 13 13 11 Q20 9 22 15" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <circle cx="13" cy="11" r="3" fill="#7EC8E3"/>
+        <rect x="10" y="15" width="6" height="7" rx="1.5" fill="#F0A95A"/>
+      </svg>
+    </div>
+    <h2>Utility Meter Readings</h2>
+    <p class="auth-sub" id="authComplexSub">Please sign in to continue</p>
+    <div class="auth-field">
+      <label>Username</label>
+      <input type="text" id="authUser" placeholder="Enter your username" autocomplete="username"
+        onkeydown="if(event.key==='Enter')document.getElementById('authPass').focus()">
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="authPass" placeholder="Enter your password" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="auth-btn" onclick="doLogin()">Sign In</button>
+    <div class="auth-error" id="authError">Incorrect username or password</div>
+  </div>
+  <div class="auth-footer">Mogale City Complex &nbsp;|&nbsp; Utility Management System</div>
+</div>
 </body>
 </html>
