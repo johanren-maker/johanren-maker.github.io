@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meter Readings — Utility Management</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --navy:#1F3864;--blue:#2E75B6;--sky:#D6E4F0;--sky2:#EBF3FA;
+  --orange:#C55A11;--red:#C00000;--red-bg:#FFE0E0;
+  --green:#1E6B3C;--green-bg:#E6F4EC;--green2:#27AE60;
+  --amber:#E67E22;--off:#F0F4F9;--border:#B8CCE4;--text:#1A1A2E;--muted:#5A7099;
+  --mono:'DM Mono',monospace;--sans:'Sora',sans-serif;--r:10px;
+  --sh:0 2px 12px rgba(31,56,100,.10);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--off);color:var(--text);min-height:100vh}
+
+/* HEADER */
+header{background:linear-gradient(135deg,#162848 0%,#1F3864 55%,#2A4A82 100%);
+  padding:0 1.75rem;display:flex;align-items:center;justify-content:space-between;
+  height:60px;position:sticky;top:0;z-index:200;box-shadow:0 2px 18px rgba(10,25,60,.45)}
+.brand{display:flex;align-items:center;gap:.75rem}
+.brand-icon{width:32px;height:32px;background:rgba(46,117,182,.7);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(255,255,255,.15)}
+.brand-text h1{font-size:.88rem;font-weight:800;color:#fff;letter-spacing:.05em;text-transform:uppercase;line-height:1.1}
+.brand-text span{font-size:.6rem;color:#7FA8CC;font-weight:300;letter-spacing:.12em;text-transform:uppercase}
+.header-nav{display:flex;gap:.2rem;flex-wrap:wrap}
+.nav-btn{padding:.35rem .85rem;border-radius:6px;border:none;font-family:var(--sans);font-size:.72rem;
+  font-weight:600;cursor:pointer;color:rgba(255,255,255,.55);background:transparent;
+  letter-spacing:.04em;transition:all .15s}
+.nav-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
+.nav-btn.active{color:#fff;background:rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
+.hdr-right{display:flex;align-items:center;gap:.65rem}
+#dbStatus{font-size:.62rem;font-weight:600;letter-spacing:.06em;opacity:.75}
+.badge{background:rgba(46,117,182,.45);color:rgba(255,255,255,.85);padding:.22rem .7rem;
+  border-radius:20px;font-family:var(--mono);font-size:.68rem;font-weight:500;border:1px solid rgba(255,255,255,.1)}
+
+/* SHELL */
+.shell{max-width:1340px;margin:0 auto;padding:1.75rem 1.5rem 5rem}
+.page{display:none}.page.active{display:block}
+
+/* CONTROL BAR */
+.control-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:.85rem;
+  background:#fff;border:1px solid var(--border);border-radius:var(--r);
+  padding:1.1rem 1.35rem;margin-bottom:1.35rem;box-shadow:var(--sh)}
+.field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);margin-bottom:.28rem}
+.field select,.field input[type=number],.field input[type=text]{width:100%;padding:.42rem .68rem;
+  border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.83rem;
+  color:var(--text);background:var(--off);transition:border-color .15s;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7099'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .62rem center;padding-right:1.85rem}
+.field input[type=number],.field input[type=text]{background-image:none;padding-right:.68rem}
+.field select:focus,.field input:focus{outline:none;border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(46,117,182,.14);background:#fff}
+.btn-primary{align-self:flex-end;background:var(--navy);color:#fff;border:none;border-radius:7px;
+  padding:.48rem 1rem;font-family:var(--sans);font-weight:700;font-size:.76rem;cursor:pointer;
+  letter-spacing:.03em;white-space:nowrap;transition:background .15s,transform .1s}
+.btn-primary:hover{background:var(--blue);transform:translateY(-1px)}
+
+/* TABS */
+.tabs-row{display:flex;gap:.42rem;flex-wrap:wrap;margin-bottom:1.15rem;align-items:center}
+.tab{padding:.38rem .9rem;border-radius:20px;border:1.5px solid var(--border);background:#fff;
+  color:var(--muted);font-size:.74rem;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.tab:hover{border-color:var(--blue);color:var(--blue)}
+.tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tab-x{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;
+  border-radius:50%;background:rgba(255,255,255,.2);color:#fff;font-size:.58rem;margin-left:.3rem;
+  cursor:pointer;font-weight:700;transition:background .12s}
+.tab-x:hover{background:var(--red)}
+.tab:not(.active) .tab-x{background:rgba(107,127,163,.15);color:var(--muted)}
+.tabs-empty{color:var(--muted);font-size:.74rem;padding:.38rem .5rem;font-style:italic}
+
+/* TYPE SWITCHER */
+.type-sw{display:flex;gap:.42rem;margin-bottom:1.25rem}
+.type-btn{padding:.35rem 1rem;border-radius:7px;border:1.5px solid var(--border);background:#fff;
+  color:var(--muted);font-size:.76rem;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.type-btn.tw{background:var(--blue);color:#fff;border-color:var(--blue)}
+.type-btn.te{background:var(--orange);color:#fff;border-color:var(--orange)}
+.type-btn:not(.tw):not(.te):hover{border-color:var(--blue);color:var(--blue)}
+
+/* CARDS */
+.card{background:#fff;border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.25rem}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:.82rem 1.3rem;border-bottom:1px solid var(--sky)}
+.card-head h2{font-size:.8rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em}
+.card-head .sub{font-size:.68rem;color:var(--muted);margin-top:.07rem}
+.card-head .card-actions{display:flex;gap:.5rem;align-items:center}
+
+/* BILLING PANEL */
+.billing-panel{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.15rem 1.35rem;margin-bottom:1.25rem;box-shadow:var(--sh)}
+.bp-head{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--navy);margin-bottom:.9rem;display:flex;align-items:center;gap:.5rem}
+.billing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.85rem}
+.bf label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.25rem}
+.bf input{width:100%;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;
+  font-family:var(--mono);font-size:.83rem;color:var(--text);background:var(--off);transition:border-color .15s}
+.bf input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.12);background:#fff}
+.bf .hint{font-size:.62rem;color:var(--muted);margin-top:.12rem}
+
+/* RECOVERY */
+.rec-strip{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:1.25rem}
+.rec-card{border-radius:var(--r);padding:1rem 1.3rem;border:1.5px solid transparent;position:relative;overflow:hidden}
+.rec-card.over{background:var(--green-bg);border-color:#A8D5B5}
+.rec-card.under{background:var(--red-bg);border-color:#F5AAAA}
+.rec-card.neutral{background:var(--sky2);border-color:var(--border)}
+.rc-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.32rem}
+.rc-type{font-size:.68rem;font-weight:700;margin-bottom:.1rem}
+.rec-card.over .rc-type{color:var(--green)}.rec-card.under .rc-type{color:var(--red)}.rec-card.neutral .rc-type{color:var(--muted)}
+.rc-val{font-family:var(--mono);font-size:1.5rem;font-weight:400;line-height:1}
+.rec-card.over .rc-val{color:var(--green)}.rec-card.under .rc-val{color:var(--red)}
+.rc-det{font-size:.68rem;color:var(--muted);margin-top:.35rem;line-height:1.5}
+.rc-pct{position:absolute;top:.82rem;right:.9rem;font-family:var(--mono);font-size:.68rem;font-weight:500;padding:.16rem .48rem;border-radius:12px}
+.rec-card.over .rc-pct{background:rgba(30,107,60,.12);color:var(--green)}
+.rec-card.under .rc-pct{background:rgba(192,0,0,.1);color:var(--red)}
+
+/* SUMMARY STRIP */
+.sum-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:.85rem;margin-bottom:1.25rem}
+.stat{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:.82rem 1rem;box-shadow:0 1px 6px rgba(46,117,182,.06)}
+.stat .sl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.24rem}
+.stat .sv{font-family:var(--mono);font-size:1.15rem;font-weight:500;color:var(--navy)}
+.stat .ss{font-size:.66rem;color:var(--muted);margin-top:.1rem}
+.stat.warn .sv{color:var(--red)}.stat.good .sv{color:var(--green2)}
+
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+thead th{background:var(--navy);color:#fff;padding:.55rem .75rem;text-align:left;
+  font-weight:600;font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+thead th.n{text-align:right}
+tbody tr{transition:background .1s}
+tbody tr:nth-child(even){background:var(--sky2)}
+tbody tr:hover{background:#C8DCEF}
+tbody tr.lr{background:var(--red-bg)!important}
+tbody tr.lr:hover{background:#FFCECE!important}
+td{padding:.42rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+td.n{text-align:right;font-family:var(--mono)}
+td.ul{font-family:var(--mono);font-weight:500;color:var(--navy);font-size:.78rem;white-space:nowrap;min-width:90px}
+td input[type=number],td input[type=text],td select{width:100%;padding:.25rem .46rem;border:1.5px solid transparent;
+  border-radius:5px;font-family:var(--mono);font-size:.76rem;color:var(--text);background:transparent;
+  transition:border-color .12s,background .12s;text-align:right}
+td input[type=text]{text-align:left}
+td select{appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%235A7099'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .33rem center;padding-right:1.2rem;text-align:left;cursor:pointer}
+td input:hover,td select:hover{border-color:var(--border);background:var(--off)}
+td input:focus,td select:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(46,117,182,.12)}
+.uv{font-family:var(--mono);font-weight:500;color:var(--blue)}
+.cv{font-family:var(--mono);font-weight:600;color:var(--navy)}
+tfoot td{background:#D9E1F2;font-weight:700;color:var(--navy);padding:.55rem .75rem;font-family:var(--mono);border-top:2px solid var(--blue)}
+tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;letter-spacing:.08em}
+
+/* BUTTONS */
+.exp-row{display:flex;justify-content:flex-end;gap:.65rem;margin-top:1.15rem;flex-wrap:wrap;align-items:center}
+.btn-exp{background:var(--green);color:#fff;border:none;border-radius:8px;padding:.55rem 1.3rem;
+  font-family:var(--sans);font-weight:700;font-size:.78rem;cursor:pointer;letter-spacing:.04em;
+  display:flex;align-items:center;gap:.4rem;transition:background .15s,transform .1s,box-shadow .1s;
+  box-shadow:0 3px 10px rgba(30,107,60,.22)}
+.btn-exp:hover{background:#155E34;transform:translateY(-1px);box-shadow:0 5px 14px rgba(30,107,60,.3)}
+.btn-exp.blue{background:var(--blue);box-shadow:0 3px 10px rgba(46,117,182,.25)}
+.btn-exp.blue:hover{background:#1A5FA0;box-shadow:0 5px 14px rgba(46,117,182,.35)}
+.btn-exp.orange{background:var(--orange);box-shadow:0 3px 10px rgba(197,90,17,.25)}
+.btn-exp.orange:hover{background:#A04810;box-shadow:0 5px 14px rgba(197,90,17,.35)}
+.btn-ghost{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:8px;
+  padding:.55rem 1rem;font-family:var(--sans);font-weight:600;font-size:.78rem;cursor:pointer;transition:border-color .15s,color .15s}
+.btn-ghost:hover{border-color:var(--blue);color:var(--blue)}
+.btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red);border-radius:8px;
+  padding:.55rem 1rem;font-family:var(--sans);font-weight:700;font-size:.78rem;cursor:pointer;transition:all .15s}
+.btn-danger:hover{background:var(--red);color:#fff}
+
+/* DASHBOARD */
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.1rem;margin-bottom:1.3rem}
+.ds{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh);position:relative;overflow:hidden}
+.ds::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.ds.dw::before{background:linear-gradient(90deg,var(--blue),#7EC8E3)}
+.ds.de::before{background:linear-gradient(90deg,var(--orange),#F0A95A)}
+.ds.drw::before{background:linear-gradient(90deg,var(--green),#52C77B)}
+.ds.dre::before{background:linear-gradient(90deg,var(--amber),#F5C842)}
+.ds.dytd::before{background:linear-gradient(90deg,#7B2FBE,#C77DFF)}
+.ds .dl{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.42rem}
+.ds .dv{font-family:var(--mono);font-size:1.65rem;font-weight:400;color:var(--navy)}
+.ds .dsub{font-size:.68rem;color:var(--muted);margin-top:.26rem}
+.ds .dbadge{position:absolute;top:.85rem;right:.85rem;font-family:var(--mono);font-size:.68rem;font-weight:500;padding:.16rem .5rem;border-radius:12px}
+.dbadge.over{background:var(--green-bg);color:var(--green)}
+.dbadge.under{background:var(--red-bg);color:var(--red)}
+.dbadge.na{background:var(--sky);color:var(--muted)}
+.chart-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.1rem}
+.cc-head{padding:.82rem 1.3rem;border-bottom:1px solid var(--sky);display:flex;align-items:center;justify-content:space-between}
+.cc-head h3{font-size:.78rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em}
+.cc-body{padding:1rem 1.3rem}
+.cc-body canvas{max-height:240px}
+.charts-2{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;margin-bottom:1.1rem}
+.ins-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.1rem}
+.ins-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh)}
+.ins-card h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);margin-bottom:.8rem;display:flex;align-items:center;gap:.42rem}
+.ir{display:flex;align-items:center;justify-content:space-between;padding:.36rem 0;border-bottom:1px solid var(--sky);font-size:.76rem}
+.ir:last-child{border-bottom:none}
+.ir .irlbl{color:var(--muted)}.ir .irv{font-family:var(--mono);font-weight:500}
+.irv.red{color:var(--red)}.irv.green{color:var(--green2)}.irv.amber{color:var(--amber)}
+.leak-item{display:flex;align-items:center;justify-content:space-between;padding:.36rem .62rem;background:var(--red-bg);border-radius:6px;margin-bottom:.32rem;font-size:.74rem}
+.li-u{font-family:var(--mono);font-weight:600;color:var(--red)}.li-m{font-size:.62rem;color:var(--muted)}
+.no-data{text-align:center;padding:2.5rem;color:var(--muted);font-size:.8rem;font-style:italic}
+
+/* ADMIN */
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem}
+.admin-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.35rem;box-shadow:var(--sh)}
+.admin-card h3{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.admin-card p{font-size:.78rem;color:var(--muted);margin-bottom:1rem;line-height:1.55}
+.admin-card .btn-row{display:flex;gap:.65rem;flex-wrap:wrap}
+.danger-zone{border-color:#F5AAAA;background:#FFFAFA}
+.danger-zone h3{color:var(--red)}
+
+/* COMPARISON */
+.compare-selectors{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;margin-bottom:1.35rem}
+.compare-sel-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh)}
+.compare-sel-card label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.3rem}
+.compare-sel-card select{width:100%;padding:.44rem .7rem;border:1.5px solid var(--border);border-radius:7px;
+  font-family:var(--mono);font-size:.84rem;color:var(--text);background:var(--off);appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7099'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .65rem center;padding-right:1.9rem}
+.compare-sel-card select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.14)}
+.cmp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem}
+.cmp-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.2rem;box-shadow:var(--sh)}
+.cmp-card .cm-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.35rem}
+.cmp-card .cm-vals{display:flex;gap:.75rem;align-items:flex-end}
+.cmp-card .cm-v{font-family:var(--mono);font-size:1.2rem;font-weight:500}
+.cmp-card .cm-v.a{color:var(--blue)}.cmp-card .cm-v.b{color:var(--orange)}
+.cmp-card .cm-delta{font-family:var(--mono);font-size:.75rem;font-weight:600;margin-top:.25rem;padding:.15rem .45rem;border-radius:12px;display:inline-block}
+.cm-delta.pos{background:var(--green-bg);color:var(--green)}
+.cm-delta.neg{background:var(--red-bg);color:var(--red)}
+.cm-delta.zer{background:var(--sky);color:var(--muted)}
+.cmp-tbl thead th:first-child{width:90px;min-width:90px}
+.cmp-tbl tbody td.val-a{color:var(--blue);font-family:var(--mono)}
+.cmp-tbl tbody td.val-b{color:var(--orange);font-family:var(--mono)}
+.cmp-tbl tbody td.delta-pos{color:var(--green);font-family:var(--mono);font-weight:600}
+.cmp-tbl tbody td.delta-neg{color:var(--red);font-family:var(--mono);font-weight:600}
+
+/* YTD SECTION */
+.ytd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.25rem}
+.ytd-stat{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.1rem;box-shadow:var(--sh);border-top:3px solid #7B2FBE}
+.ytd-stat .yl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.22rem}
+.ytd-stat .yv{font-family:var(--mono);font-size:1.2rem;font-weight:500;color:var(--navy)}
+.ytd-stat .ys{font-size:.65rem;color:var(--muted);margin-top:.1rem}
+
+/* INVOICE */
+.inv-form{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.35rem;box-shadow:var(--sh);margin-bottom:1.25rem}
+.inv-form h3{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);margin-bottom:1rem}
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.9rem;margin-bottom:1.1rem}
+.inv-field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.25rem}
+.inv-field input,.inv-field select{width:100%;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;
+  font-family:var(--mono);font-size:.83rem;color:var(--text);background:var(--off);transition:border-color .15s;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7099'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .62rem center;padding-right:1.85rem}
+.inv-field input{background-image:none;padding-right:.68rem}
+.inv-field input:focus,.inv-field select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.14);background:#fff}
+
+/* IMPORT */
+.import-drop{border:2px dashed var(--border);border-radius:var(--r);padding:2rem;text-align:center;
+  cursor:pointer;transition:border-color .2s,background .2s;background:var(--sky2)}
+.import-drop:hover,.import-drop.drag-over{border-color:var(--blue);background:var(--sky)}
+.import-drop p{font-size:.82rem;color:var(--muted);margin-top:.5rem}
+.import-drop .big-icon{font-size:2rem;display:block;margin-bottom:.25rem}
+
+/* DASH EMPTY */
+.dash-empty{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:4rem 2rem;text-align:center;color:var(--muted);box-shadow:var(--sh)}
+.dash-empty p{font-size:.83rem;margin-top:.7rem}
+
+/* SECTION DIVIDER */
+.section-hdr{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:2rem 0 1rem;display:flex;align-items:center;gap:.7rem}
+.section-hdr::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* TOAST */
+#toast{position:fixed;bottom:2rem;right:2rem;color:#fff;padding:.62rem 1.2rem;border-radius:8px;
+  font-size:.78rem;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.2);
+  transform:translateY(80px);opacity:0;transition:transform .3s cubic-bezier(.34,1.56,.64,1),opacity .3s;z-index:999}
+#toast.show{transform:translateY(0);opacity:1}
+.empty-state{text-align:center;padding:3.5rem 2rem;color:var(--muted)}
+.empty-state p{font-size:.83rem;margin-top:.65rem}
+input[type=file]{display:none}
+
+@media(max-width:700px){
+  header{padding:0 .9rem}.header-nav{display:none}.shell{padding:1rem .75rem 3rem}
+  .control-bar{grid-template-columns:1fr 1fr}.rec-strip{grid-template-columns:1fr}
+  .charts-2{grid-template-columns:1fr}.compare-selectors{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M3 14 Q5 7 9 5 Q13 3 15 9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <circle cx="9" cy="5" r="1.8" fill="#7EC8E3"/>
+        <rect x="7" y="9.5" width="4" height="5" rx="1" fill="#F0A95A"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <span id="headerComplexName">Utility Management</span>
+      <h1>Utility Meter Readings</h1>
+    </div>
+  </div>
+  <div class="header-nav">
+    <button class="nav-btn active" onclick="showPage('data-entry',this)">📋 Data Entry</button>
+    <button class="nav-btn" onclick="showPage('billing',this)">🏛 Billing</button>
+    <button class="nav-btn" onclick="showPage('compare',this)">🔀 Compare</button>
+    <button class="nav-btn" onclick="showPage('dashboard',this)">📊 Dashboard</button>
+    <button class="nav-btn" onclick="showPage('invoices',this)">🧾 Invoices</button>
+    <button class="nav-btn" onclick="showPage('admin',this)">⚙️ Admin</button>
+  </div>
+  <div class="hdr-right">
+    <span id="dbStatus">● DB…</span>
+    <div class="badge" id="activeBadge">No month selected</div>
+  </div>
+</header>
+
+<div class="shell">
+
+<!-- ═══════════════ DATA ENTRY ═══════════════ -->
+<div id="page-data-entry" class="page active">
+  <div class="control-bar">
+    <div class="field"><label>Month</label>
+      <select id="selMonth">
+        <option value="01">January</option><option value="02">February</option>
+        <option value="03">March</option><option value="04">April</option>
+        <option value="05">May</option><option value="06">June</option>
+        <option value="07">July</option><option value="08">August</option>
+        <option value="09">September</option><option value="10">October</option>
+        <option value="11">November</option><option value="12">December</option>
+      </select></div>
+    <div class="field"><label>Year</label><select id="selYear"></select></div>
+    <div class="field"><label>Units</label><input type="number" id="numUnits" value="65" min="1" max="300"></div>
+    <div class="field"><label>Water Rate (R/kl)</label><input type="number" id="waterRate" value="34.95" step="0.01" min="0"></div>
+    <div class="field"><label>Elec Rate (R/kWh)</label><input type="number" id="elecRate" value="3.24" step="0.01" min="0"></div>
+    <div class="field" style="display:flex;align-items:flex-end;gap:.5rem;flex-wrap:wrap">
+      <button class="btn-primary" onclick="addMonth()">＋ Add Month</button>
+      <button class="btn-primary" style="background:var(--blue)" onclick="document.getElementById('importReadingsFile').click()">⬆ Import</button>
+      <input type="file" id="importReadingsFile" accept=".xlsx,.xls" onchange="importReadings(this)">
+    </div>
+  </div>
+  <div class="tabs-row" id="tabsRow"><div class="tabs-empty">No months yet — add one above ↑</div></div>
+  <div id="entryContent">
+    <div class="empty-state">
+      <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+        <rect x="5" y="5" width="42" height="42" rx="8" stroke="#B8CCE4" stroke-width="2"/>
+        <path d="M17 26h18M26 17v18" stroke="#B8CCE4" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <p>Select a month and click <strong>Add Month</strong> to start, or <strong>Import</strong> an existing Excel file.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BILLING ═══════════════ -->
+<div id="page-billing" class="page">
+  <div id="billingContent">
+    <div class="empty-state"><p>Add month sheets in <strong>Data Entry</strong> first.</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ COMPARE ═══════════════ -->
+<div id="page-compare" class="page">
+  <div id="compareContent">
+    <div class="empty-state"><p>Add at least 2 months to use the comparison tool.</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div id="page-dashboard" class="page">
+  <div id="dashContent">
+    <div class="dash-empty">
+      <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
+        <rect x="4" y="26" width="13" height="26" rx="3" stroke="#B8CCE4" stroke-width="2"/>
+        <rect x="23" y="15" width="13" height="37" rx="3" stroke="#B8CCE4" stroke-width="2"/>
+        <rect x="42" y="7" width="13" height="45" rx="3" stroke="#B8CCE4" stroke-width="2"/>
+      </svg>
+      <p>Add months and billing data to unlock insights.</p>
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE PREVIEW MODAL -->
+<div id="invModal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(15,25,50,.65);backdrop-filter:blur(3px);overflow-y:auto;padding:2rem 1rem">
+  <div style="max-width:800px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.35)">
+    <div style="background:#1F3864;padding:1rem 1.4rem;display:flex;align-items:center;justify-content:space-between">
+      <span style="color:#fff;font-weight:700;font-size:.88rem;letter-spacing:.05em">INVOICE PREVIEW</span>
+      <div style="display:flex;gap:.65rem;align-items:center">
+        <button id="modalDownloadBtn" onclick="downloadFromPreview()" style="background:#1E6B3C;color:#fff;border:none;border-radius:6px;padding:.42rem 1.1rem;font-family:inherit;font-weight:700;font-size:.76rem;cursor:pointer;display:flex;align-items:center;gap:.4rem">
+          Download PDF
+        </button>
+        <button onclick="closeInvModal()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:.42rem .9rem;font-family:inherit;font-weight:600;font-size:.76rem;cursor:pointer">Close</button>
+      </div>
+    </div>
+    <div id="invPreviewBody" style="padding:2rem 2.5rem;font-family:Arial,sans-serif"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ INVOICES ═══════════════ -->
+<div id="page-invoices" class="page">
+  <div id="invPropertyBanner" style="background:var(--sky2);border:1px solid var(--border);border-radius:var(--r);padding:.75rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <span id="invPropertySummary" style="font-size:.78rem;color:var(--muted)">Loading property details...</span>
+    <button class="btn-ghost" style="font-size:.72rem;padding:.3rem .8rem" onclick="goToAdminProperty()">Edit Property Details</button>
+  </div>
+  <div class="inv-form">
+    <h3>Generate Invoice</h3>
+    <div class="inv-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div class="inv-field"><label>Select Month</label>
+        <select id="invMonth" onchange="populateInvUnits()">
+          <option value="">-- choose month --</option>
+        </select></div>
+      <div class="inv-field"><label>Select Unit</label>
+        <select id="invUnit">
+          <option value="">-- choose unit --</option>
+        </select></div>
+      <div class="inv-field"><label>Owner Name</label><input type="text" id="invOwnerName" placeholder="Owner / tenant name"></div>
+      <div class="inv-field"><label>Owner Email</label><input type="text" id="invOwnerEmail" placeholder="owner@email.com"></div>
+      <div class="inv-field"><label>Invoice Number</label><input type="text" id="invNumber" placeholder="INV-2026-001"></div>
+    </div>
+    <div class="exp-row" style="justify-content:flex-start">
+      <button class="btn-exp blue" onclick="previewInvoice()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="1.5" stroke="#fff" stroke-width="1.4"/><path d="M4 7h6M4 5h4" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Preview &amp; Download
+      </button>
+      <button class="btn-ghost" onclick="generateAllInvoices()">Download All Units for Month</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN ═══════════════ -->
+<div id="page-admin" class="page">
+  <div class="section-hdr">Database Management</div>
+  <div class="admin-grid">
+    <div class="admin-card">
+      <h3>&#x1F4E4; Export Database</h3>
+      <p>Download a full backup of all months, readings and billing data as a JSON file. Use this to transfer data between browsers or computers.</p>
+      <div class="btn-row">
+        <button class="btn-exp" onclick="exportDB()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5h10M7 2v7M4.5 6l2.5 3L9.5 6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Export Database (JSON)
+        </button>
+      </div>
+    </div>
+    <div class="admin-card">
+      <h3>📥 Import Database</h3>
+      <p>Restore from a previously exported JSON backup. This will <strong>merge</strong> with existing data — existing months will be overwritten if the same key exists.</p>
+      <div class="btn-row">
+        <button class="btn-exp blue" onclick="document.getElementById('importDBFile').click()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M7 12V5M4.5 8l2.5-3L9.5 8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Import Database (JSON)
+        </button>
+        <input type="file" id="importDBFile" accept=".json" onchange="importDB(this)">
+      </div>
+    </div>
+    <div class="admin-card">
+      <h3>📊 Export to Excel</h3>
+      <p>Export all months, readings and recovery analysis to a formatted Excel workbook with one sheet per month per utility.</p>
+      <div class="btn-row">
+        <button class="btn-exp orange" onclick="exportExcel()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5h10M7 2v7M4.5 6l2.5 3L9.5 6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Export All to Excel
+        </button>
+      </div>
+    </div>
+    <div class="admin-card danger-zone">
+      <h3>⚠️ Danger Zone</h3>
+      <p>Permanently delete all months, readings, billing data and settings from the local database. This action <strong>cannot be undone</strong>. Export a backup first.</p>
+      <div class="btn-row">
+        <button class="btn-danger" onclick="wipeAllData()">🗑 Wipe All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-hdr">Database Status</div>
+  <div class="admin-card" id="adminStatus" style="max-width:600px">
+    <h3>ℹ️ Current Status</h3>
+    <div id="adminStatusBody"><p style="font-size:.78rem;color:var(--muted)">Loading...</p></div>
+  </div>
+
+  <div class="section-hdr">Property / Complex Details</div>
+  <div class="admin-card" style="max-width:900px;position:relative">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem">
+      <h3 style="margin-bottom:0">Property Settings</h3>
+      <button id="propEditBtn" onclick="togglePropEdit()" class="btn-ghost" style="font-size:.72rem;padding:.32rem .85rem">Edit</button>
+    </div>
+    <div id="propViewMode">
+      <div id="propDisplayGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem .9rem;font-size:.8rem"></div>
+    </div>
+    <div id="propEditMode" style="display:none">
+      <div class="inv-grid" style="margin-bottom:1rem">
+        <div class="inv-field"><label>Complex / Property Name</label><input type="text" id="invComplex" placeholder="Complex name"></div>
+        <div class="inv-field"><label>Address Line 1</label><input type="text" id="invAddr1" placeholder="Street address"></div>
+        <div class="inv-field"><label>Address Line 2</label><input type="text" id="invAddr2" placeholder="Suburb, City"></div>
+        <div class="inv-field"><label>Contact / Manager</label><input type="text" id="invContact" placeholder="Manager name"></div>
+        <div class="inv-field"><label>Email</label><input type="text" id="invEmail" placeholder="manager@complex.co.za"></div>
+        <div class="inv-field"><label>Phone</label><input type="text" id="invPhone" placeholder="+27 11 000 0000"></div>
+        <div class="inv-field"><label>Bank Name</label><input type="text" id="invBank" placeholder="FNB / ABSA / Standard Bank"></div>
+        <div class="inv-field"><label>Account Number</label><input type="text" id="invAccNo" placeholder="1234567890"></div>
+        <div class="inv-field"><label>Branch Code</label><input type="text" id="invBranch" placeholder="250655"></div>
+        <div class="inv-field"><label>Account Type</label><input type="text" id="invAccType" placeholder="Cheque / Current"></div>
+        <div class="inv-field"><label>Payment Due (days)</label><input type="number" id="invDueDays" value="30"></div>
+        <div class="inv-field"><label>VAT Number (optional)</label><input type="text" id="invVAT" placeholder="4XXXXXXXXX"></div>
+      </div>
+      <div style="display:flex;gap:.65rem">
+        <button class="btn-exp" onclick="savePropSettings()">Save Settings</button>
+        <button class="btn-ghost" onclick="cancelPropEdit()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /shell -->
+<div id="toast"></div>
+<input type="file" id="importReadingsFile2" accept=".xlsx,.xls" style="display:none">
+
+<script>
+const MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const months={};
+let activeKey=null, activeType='water', charts={};
+
+// ═══════════════ INDEXEDDB ═══════════════
+const DB_NAME='MeterReadingsDB', DB_VER=2, STORE='months';
+let db=null;
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'key'});
+      if(!d.objectStoreNames.contains('propSettings')) d.createObjectStore('propSettings',{keyPath:'key'});
+    };
+    req.onsuccess=e=>{db=e.target.result;res(db);};
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+function dbSave(key){
+  if(!db)return;
+  db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]});
+}
+function dbDelete(key){
+  if(!db)return;
+  db.transaction(STORE,'readwrite').objectStore(STORE).delete(key);
+}
+function dbLoadAll(){
+  return new Promise((res,rej)=>{
+    if(!db){res([]);return;}
+    const req=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+
+// ═══════════════ INIT ═══════════════
+async function init(){
+  const sy=document.getElementById('selYear');
+  const now=new Date();
+  for(let y=now.getFullYear()-2;y<=now.getFullYear()+2;y++){
+    const o=document.createElement('option');
+    o.value=y;o.textContent=y;if(y===now.getFullYear())o.selected=true;
+    sy.appendChild(o);
+  }
+  document.getElementById('selMonth').value=String(now.getMonth()+1).padStart(2,'0');
+  try{
+    await openDB();
+    await loadPropFromDB();
+    updateHeaderComplex();
+    const saved=await dbLoadAll();
+    saved.forEach(rec=>{ const{key,...data}=rec; months[key]=data; });
+    const keys=Object.keys(months).sort();
+    if(keys.length){ renderTabs(); activateTab(keys[keys.length-1]); showToast(`Loaded ${keys.length} month${keys.length>1?'s':''} from local DB`,'var(--blue)'); }
+    document.getElementById('dbStatus').textContent='● DB Connected';
+    document.getElementById('dbStatus').style.color='#7EC8E3';
+  }catch(err){
+    document.getElementById('dbStatus').textContent='● DB Unavailable';
+    document.getElementById('dbStatus').style.color='#F5AAAA';
+  }
+  populateInvMonths();
+}
+init();
+
+// ═══════════════ PAGE NAV ═══════════════
+function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(btn)btn.classList.add('active');
+  if(id==='billing')renderBillingPage();
+  if(id==='dashboard')renderDashboard();
+  if(id==='compare')renderComparePage();
+  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
+  if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
+}
+
+// ═══════════════ MONTH MANAGEMENT ═══════════════
+function addMonth(){
+  const m=document.getElementById('selMonth').value;
+  const y=document.getElementById('selYear').value;
+  const key=`${y}-${m}`;
+  if(months[key]){activateTab(key);showToast('Sheet already exists!','#C55A11');return;}
+  const units=parseInt(document.getElementById('numUnits').value)||65;
+  const wr=parseFloat(document.getElementById('waterRate').value)||34.95;
+  const er=parseFloat(document.getElementById('elecRate').value)||3.24;
+  months[key]={
+    label:`${MNAMES[parseInt(m)-1]} ${y}`,month:m,year:y,units,waterRate:wr,elecRate:er,
+    water:Array.from({length:units},(_,i)=>({unit:i+1,opening:'',closing:'',flagLeak:false,notes:''})),
+    elec: Array.from({length:units},(_,i)=>({unit:i+1,opening:'',closing:'',notes:''})),
+    billing:{waterUsage:'',waterAmount:'',elecUsage:'',elecAmount:'',invoiceNo:'',invoiceDate:''}
+  };
+  dbSave(key); renderTabs(); activateTab(key); populateInvMonths();
+  showToast(`Added: ${months[key].label}`);
+}
+
+function renderTabs(){
+  const row=document.getElementById('tabsRow'); row.innerHTML='';
+  const keys=Object.keys(months).sort();
+  if(!keys.length){row.innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';return;}
+  keys.forEach(key=>{
+    const t=document.createElement('div');
+    t.className='tab'+(key===activeKey?' active':'');
+    t.innerHTML=`${months[key].label}<span class="tab-x" onclick="removeTab(event,'${key}')">✕</span>`;
+    t.onclick=e=>{if(!e.target.classList.contains('tab-x'))activateTab(key);};
+    row.appendChild(t);
+  });
+}
+
+function activateTab(key){
+  activeKey=key;
+  document.getElementById('activeBadge').textContent=months[key]?.label||'—';
+  renderTabs(); renderEntryContent();
+}
+
+function removeTab(e,key){
+  e.stopPropagation();
+  if(!confirm(`Remove "${months[key].label}"?`))return;
+  delete months[key]; dbDelete(key);
+  activeKey=Object.keys(months).sort().slice(-1)[0]||null;
+  renderTabs();
+  if(activeKey) activateTab(activeKey);
+  else{
+    document.getElementById('activeBadge').textContent='No month selected';
+    document.getElementById('entryContent').innerHTML='<div class="empty-state"><p>All sheets removed.</p></div>';
+  }
+  populateInvMonths();
+}
+
+// ═══════════════ DATA ENTRY ═══════════════
+function renderEntryContent(){
+  if(!activeKey)return;
+  const ec=document.getElementById('entryContent'); ec.innerHTML='';
+  const sw=document.createElement('div'); sw.className='type-sw';
+  sw.innerHTML=`<button class="type-btn ${activeType==='water'?'tw':''}" onclick="switchType('water')">💧 Water</button>
+    <button class="type-btn ${activeType==='elec'?'te':''}" onclick="switchType('elec')">⚡ Electricity</button>`;
+  ec.appendChild(sw);
+  renderSumStrip(ec); renderDataTable(ec); renderExpRow(ec);
+}
+
+function switchType(t){activeType=t;renderEntryContent();}
+
+function renderSumStrip(c){
+  const d=months[activeKey];
+  const rows=activeType==='water'?d.water:d.elec;
+  const rate=activeType==='water'?d.waterRate:d.elecRate;
+  const unit=activeType==='water'?'kl':'kWh';
+  let tU=0,tC=0,filled=0,leaks=0;
+  rows.forEach(r=>{
+    const o=parseFloat(r.opening),cl=parseFloat(r.closing);
+    if(!isNaN(o)&&!isNaN(cl)&&cl>=o){const u=cl-o;tU+=u;tC+=u*rate;filled++;}
+    if(activeType==='water'&&r.flagLeak)leaks++;
+  });
+  const s=document.createElement('div'); s.className='sum-strip';
+  s.innerHTML=`
+    <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
+      <div class="sv">${tU.toFixed(activeType==='water'?4:0)}</div><div class="ss">${unit} this month</div></div>
+    <div class="stat"><div class="sl">💰 Total Charge</div>
+      <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
+    <div class="stat"><div class="sl">📋 Captured</div>
+      <div class="sv">${filled}/${d.units}</div><div class="ss">readings entered</div></div>
+    ${activeType==='water'?`<div class="stat ${leaks>0?'warn':''}">
+      <div class="sl">🔴 Problems</div><div class="sv">${leaks}</div>
+      <div class="ss">unit${leaks!==1?'s':''} flagged</div></div>`:''}`;
+  c.appendChild(s);
+}
+
+function renderDataTable(c){
+  const d=months[activeKey];
+  const rows=activeType==='water'?d.water:d.elec;
+  const rate=activeType==='water'?d.waterRate:d.elecRate;
+  const unit=activeType==='water'?'kl':'kWh';
+  const isW=activeType==='water'; const dp=isW?4:0;
+
+  const card=document.createElement('div'); card.className='card';
+  const hd=document.createElement('div'); hd.className='card-head';
+  hd.innerHTML=`<div><h2>${isW?'💧 Water':'⚡ Electricity'} Readings</h2>
+    <div class="sub">${d.label} · Rate: R${rate}/${unit}</div></div>`;
+  card.appendChild(hd);
+  const tw=document.createElement('div'); tw.className='tw';
+  const tbl=document.createElement('table');
+  tbl.innerHTML=`<thead><tr>
+    <th style="width:90px;min-width:90px">Unit #</th>
+    <th class="n">Opening (${unit})</th><th class="n">Closing (${unit})</th>
+    <th class="n">Usage (${unit})</th><th class="n">Charge (R)</th>
+    <th>${isW?'Problem Reporting':'Notes'}</th>
+  </tr></thead><tbody id="tbd"></tbody>
+  <tfoot><tr><td class="lbl" colspan="3">TOTALS</td>
+    <td class="n" id="ftU">—</td><td class="n" id="ftC">—</td><td></td>
+  </tr></tfoot>`;
+  tw.appendChild(tbl); card.appendChild(tw); c.appendChild(card);
+
+  const tbody=tbl.querySelector('#tbd'); let tU=0,tC=0;
+  rows.forEach((row,idx)=>{
+    const tr=document.createElement('tr');
+    if(isW&&row.flagLeak) tr.classList.add('lr');
+    const o=parseFloat(row.opening),cl=parseFloat(row.closing);
+    const u=(!isNaN(o)&&!isNaN(cl)&&cl>=o)?(cl-o):null;
+    const ch=u!==null?u*rate:null;
+    if(u!==null){tU+=u;tC+=ch;}
+    tr.innerHTML=`<td class="ul">Unit ${row.unit}</td>
+      <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.opening}"
+        onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value)"></td>
+      <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
+        onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value)"></td>
+      <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
+      <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
+      <td>${isW?`<select onchange="upRow('${activeKey}','${activeType}',${idx},'flagLeak',this.value==='leak')">
+        <option value="">Normal</option>
+        <option value="leak"${row.flagLeak?' selected':''}>🔴 Possible Leak</option>
+        <option value="meter"${row.notes==='Faulty meter'?' selected':''}>⚠️ Faulty Meter</option>
+        <option value="access"${row.notes==='No access'?' selected':''}>🚫 No Access</option>
+        <option value="dispute"${row.notes==='Disputed reading'?' selected':''}>❓ Disputed Reading</option>
+      </select>`:`<input type="text" placeholder="Note…" value="${row.notes||''}"
+        onchange="upRow('${activeKey}','${activeType}',${idx},'notes',this.value)">`}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('ftU').textContent=tU.toFixed(dp);
+  document.getElementById('ftC').textContent='R'+fmt(tC);
+}
+
+function upRow(key,type,idx,field,value){
+  if(field==='flagLeak'){
+    months[key][type][idx].flagLeak=(value==='leak');
+    if(value&&value!=='leak') months[key][type][idx].notes=
+      value==='meter'?'Faulty meter':value==='access'?'No access':'Disputed reading';
+    else if(value==='leak') months[key][type][idx].notes='Possible leak';
+    else months[key][type][idx].notes='';
+  } else {
+    months[key][type][idx][field]=value;
+  }
+  dbSave(key); renderEntryContent();
+}
+
+function renderExpRow(c){
+  const r=document.createElement('div'); r.className='exp-row';
+  r.innerHTML=`<button class="btn-ghost" onclick="clearMonth()">🗑 Clear Readings</button>
+    <button class="btn-exp" onclick="exportExcel()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 10.5h10M7 2v7M4.5 6l2.5 3L9.5 6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>Export Excel</button>`;
+  c.appendChild(r);
+}
+
+function clearMonth(){
+  if(!activeKey||!confirm('Clear all readings for this month?'))return;
+  const d=months[activeKey];
+  ['water','elec'].forEach(t=>d[t].forEach(r=>{r.opening='';r.closing='';r.notes='';r.flagLeak=false;}));
+  dbSave(activeKey); renderEntryContent(); showToast('Readings cleared','#C55A11');
+}
+
+// ═══════════════ IMPORT READINGS ═══════════════
+function importReadings(input){
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      let imported=0;
+      wb.SheetNames.forEach(sn=>{
+        const ws=wb.Sheets[sn];
+        const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(data.length<2)return;
+        // Try to detect if it's water or electricity from sheet name
+        const isWater=sn.toLowerCase().includes('water');
+        const isElec=sn.toLowerCase().includes('elec');
+        if(!isWater&&!isElec)return;
+        // Find month/year from date column (row 1, col index 1)
+        const row1=data[1];
+        if(!row1||!row1[1])return;
+        const dateStr=String(row1[1]); // e.g. "01/02/2026"
+        const parts=dateStr.split('/');
+        if(parts.length<3)return;
+        const m=parts[1].padStart(2,'0'), y=parts[2];
+        const key=`${y}-${m}`;
+        if(!months[key]){
+          // create month shell
+          const units=data.filter((r,i)=>i>0&&r[0]&&String(r[0]).trim()!=='Total').length;
+          const wr=parseFloat(document.getElementById('waterRate').value)||34.95;
+          const er=parseFloat(document.getElementById('elecRate').value)||3.24;
+          months[key]={
+            label:`${MNAMES[parseInt(m)-1]} ${y}`,month:m,year:y,
+            units:units||65,waterRate:wr,elecRate:er,
+            water:Array.from({length:units||65},(_,i)=>({unit:i+1,opening:'',closing:'',flagLeak:false,notes:''})),
+            elec: Array.from({length:units||65},(_,i)=>({unit:i+1,opening:'',closing:'',notes:''})),
+            billing:{waterUsage:'',waterAmount:'',elecUsage:'',elecAmount:'',invoiceNo:'',invoiceDate:''}
+          };
+        }
+        const type=isWater?'water':'elec';
+        data.forEach((row,i)=>{
+          if(i===0)return; // header
+          const unitNum=parseInt(row[0]);
+          if(isNaN(unitNum))return;
+          const idx=months[key][type].findIndex(r=>r.unit===unitNum);
+          if(idx<0)return;
+          months[key][type][idx].opening=row[3]!==''?String(row[3]):'';
+          months[key][type][idx].closing=row[5]!==''?String(row[5]):'';
+          if(isWater){
+            const note=String(row[8]||'').toLowerCase();
+            months[key][type][idx].flagLeak=note.includes('leak');
+            months[key][type][idx].notes=row[8]||'';
+          } else {
+            months[key][type][idx].notes=row[8]||'';
+          }
+        });
+        dbSave(key); imported++;
+      });
+      renderTabs();
+      const keys=Object.keys(months).sort();
+      if(keys.length) activateTab(keys[keys.length-1]);
+      populateInvMonths();
+      showToast(imported>0?`✓ Imported ${imported} sheet${imported>1?'s':''}`:'No valid sheets found','#1F3864');
+    }catch(err){
+      showToast('Import failed: '+err.message,'#C00000');
+    }
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════ BILLING ═══════════════
+function renderBillingPage(){
+  const bc=document.getElementById('billingContent'); bc.innerHTML='';
+  const keys=Object.keys(months).sort();
+  if(!keys.length){bc.innerHTML='<div class="empty-state"><p>Add month sheets in Data Entry first.</p></div>';return;}
+  keys.forEach(key=>{
+    const d=months[key]; const b=d.billing;
+    const sec=document.createElement('div'); sec.style.marginBottom='1.75rem';
+    const panel=document.createElement('div'); panel.className='billing-panel';
+    panel.innerHTML=`<div class="bp-head">🏛 ${d.label} — Mogale City Invoice</div>
+    <div class="billing-grid">
+      <div class="bf"><label>Invoice Number</label>
+        <input type="text" placeholder="MC-2026-001" value="${b.invoiceNo||''}" onchange="upBilling('${key}','invoiceNo',this.value)"></div>
+      <div class="bf"><label>Invoice Date</label>
+        <input type="date" value="${b.invoiceDate||''}" onchange="upBilling('${key}','invoiceDate',this.value)"></div>
+      <div class="bf"><label>💧 Water Usage Billed (kl)</label>
+        <input type="number" step="0.001" placeholder="0.000" value="${b.waterUsage||''}" onchange="upBilling('${key}','waterUsage',this.value)">
+        <div class="hint">kl on Mogale City bill</div></div>
+      <div class="bf"><label>💧 Water Amount Billed (R)</label>
+        <input type="number" step="0.01" placeholder="0.00" value="${b.waterAmount||''}" onchange="upBilling('${key}','waterAmount',this.value)">
+        <div class="hint">Rand charged by municipality</div></div>
+      <div class="bf"><label>⚡ Electricity Usage Billed (kWh)</label>
+        <input type="number" step="1" placeholder="0" value="${b.elecUsage||''}" onchange="upBilling('${key}','elecUsage',this.value)">
+        <div class="hint">kWh on Mogale City bill</div></div>
+      <div class="bf"><label>⚡ Electricity Amount Billed (R)</label>
+        <input type="number" step="0.01" placeholder="0.00" value="${b.elecAmount||''}" onchange="upBilling('${key}','elecAmount',this.value)">
+        <div class="hint">Rand charged by municipality</div></div>
+    </div>`;
+    sec.appendChild(panel);
+    sec.appendChild(buildRecovery(key));
+    bc.appendChild(sec);
+  });
+}
+
+function upBilling(key,field,value){months[key].billing[field]=value;dbSave(key);renderBillingPage();}
+
+function calcTotals(key,type){
+  const d=months[key];
+  return d[type].reduce((s,r)=>{
+    const o=parseFloat(r.opening),c=parseFloat(r.closing);
+    if(!isNaN(o)&&!isNaN(c)&&c>=o){s.usage+=c-o;s.charge+=(c-o)*(type==='water'?d.waterRate:d.elecRate);}
+    return s;
+  },{usage:0,charge:0});
+}
+
+function buildRecovery(key){
+  const d=months[key];const b=d.billing;
+  const wT=calcTotals(key,'water');const eT=calcTotals(key,'elec');
+  const wM=parseFloat(b.waterAmount)||0;const eM=parseFloat(b.elecAmount)||0;
+  const wD=wT.charge-wM;const eD=eT.charge-eM;
+  const wUM=parseFloat(b.waterUsage)||0;const eUM=parseFloat(b.elecUsage)||0;
+  const rc=v=>v>0?'over':v<0?'under':'neutral';
+  const rl=v=>v>0?'Over-Recovery':v<0?'Under-Recovery':'Balanced';
+  const pct=(dv,bv)=>bv===0?'n/a':(Math.abs(dv/bv)*100).toFixed(1)+'%';
+  const strip=document.createElement('div'); strip.className='rec-strip';
+  strip.innerHTML=`
+    <div class="rec-card ${rc(wD)}">
+      <div class="rc-label">💧 Water Recovery — ${d.label}</div>
+      <div class="rc-type">${rl(wD)}</div>
+      <div class="rc-val">${wD>=0?'+':'−'}R${fmt(Math.abs(wD))}</div>
+      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(4)} kl)<br>
+        Municipal: <strong>R${fmt(wM)}</strong> (${wUM||'?'} kl)<br>
+        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(4)} kl</div>
+      ${wM>0?`<div class="rc-pct">${pct(wD,wM)}</div>`:''}
+    </div>
+    <div class="rec-card ${rc(eD)}">
+      <div class="rc-label">⚡ Electricity Recovery — ${d.label}</div>
+      <div class="rc-type">${rl(eD)}</div>
+      <div class="rc-val">${eD>=0?'+':'−'}R${fmt(Math.abs(eD))}</div>
+      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${eT.usage.toFixed(0)} kWh)<br>
+        Municipal: <strong>R${fmt(eM)}</strong> (${eUM||'?'} kWh)<br>
+        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${(eT.usage-eUM).toFixed(0)} kWh</div>
+      ${eM>0?`<div class="rc-pct">${pct(eD,eM)}</div>`:''}
+    </div>`;
+  return strip;
+}
+
+// ═══════════════ COMPARE ═══════════════
+function renderComparePage(){
+  const cc=document.getElementById('compareContent'); cc.innerHTML='';
+  const keys=Object.keys(months).sort();
+  if(keys.length<2){cc.innerHTML='<div class="empty-state"><p>Add at least 2 months to use the comparison tool.</p></div>';return;}
+
+  const selDiv=document.createElement('div'); selDiv.className='compare-selectors';
+  selDiv.innerHTML=`
+    <div class="compare-sel-card" style="border-left:4px solid var(--blue)">
+      <label>📘 Month A</label>
+      <select id="cmpA" onchange="renderCmpResults()">
+        ${keys.map((k,i)=>`<option value="${k}" ${i===keys.length-2?'selected':''}>${months[k].label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="compare-sel-card" style="border-left:4px solid var(--orange)">
+      <label>📙 Month B</label>
+      <select id="cmpB" onchange="renderCmpResults()">
+        ${keys.map((k,i)=>`<option value="${k}" ${i===keys.length-1?'selected':''}>${months[k].label}</option>`).join('')}
+      </select>
+    </div>`;
+  cc.appendChild(selDiv);
+
+  const resultsDiv=document.createElement('div'); resultsDiv.id='cmpResults';
+  cc.appendChild(resultsDiv);
+  renderCmpResults();
+}
+
+function renderCmpResults(){
+  const kA=document.getElementById('cmpA')?.value;
+  const kB=document.getElementById('cmpB')?.value;
+  const div=document.getElementById('cmpResults');
+  if(!div||!kA||!kB||!months[kA]||!months[kB]){return;}
+  div.innerHTML='';
+  const dA=months[kA], dB=months[kB];
+  const wTA=calcTotals(kA,'water'), eTA=calcTotals(kA,'elec');
+  const wTB=calcTotals(kB,'water'), eTB=calcTotals(kB,'elec');
+
+  // KPI comparison cards
+  function cmpCard(label,a,b,unit,decimals=2){
+    const d=b-a; const pct=a===0?null:((d/Math.abs(a))*100).toFixed(1);
+    const dClass=d>0?'neg':d<0?'pos':'zer'; // higher usage = bad = neg for recovery
+    return `<div class="cmp-card">
+      <div class="cm-label">${label}</div>
+      <div class="cm-vals">
+        <div><div class="cm-v a">${typeof a==='number'?a.toFixed(decimals):a} <span style="font-size:.65rem;color:var(--muted)">${unit}</span></div>
+          <div style="font-size:.62rem;color:var(--blue);margin-top:.15rem">${dA.label}</div></div>
+        <div><div class="cm-v b">${typeof b==='number'?b.toFixed(decimals):b} <span style="font-size:.65rem;color:var(--muted)">${unit}</span></div>
+          <div style="font-size:.62rem;color:var(--orange);margin-top:.15rem">${dB.label}</div></div>
+      </div>
+      <div><span class="cm-delta ${d>0?'neg':d<0?'pos':'zer'}">${d>=0?'+':''}${d.toFixed(decimals)} ${unit}${pct?` (${d>=0?'+':''}${pct}%)`:''}</span></div>
+    </div>`;
+  }
+
+  const grid=document.createElement('div'); grid.className='cmp-grid';
+  grid.innerHTML=
+    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',4)+
+    cmpCard('💧 Water Charge',wTA.charge,wTB.charge,'R')+
+    cmpCard('⚡ Electricity Usage',eTA.usage,eTB.usage,'kWh',0)+
+    cmpCard('⚡ Electricity Charge',eTA.charge,eTB.charge,'R')+
+    cmpCard('💰 Total Charge',wTA.charge+eTA.charge,wTB.charge+eTB.charge,'R')+
+    cmpCard('🔴 Flagged Problems',dA.water.filter(r=>r.flagLeak).length,dB.water.filter(r=>r.flagLeak).length,'units',0);
+  div.appendChild(grid);
+
+  // Unit-by-unit comparison table
+  ['water','elec'].forEach(type=>{
+    const isW=type==='water';
+    const rateA=isW?dA.waterRate:dA.elecRate;
+    const rateB=isW?dB.waterRate:dB.elecRate;
+    const unit=isW?'kl':'kWh'; const dp=isW?4:0;
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`<div class="card-head"><div><h2>${isW?'💧 Water':'⚡ Electricity'} — Unit by Unit</h2>
+      <div class="sub"><span style="color:var(--blue)">Blue = ${dA.label}</span> &nbsp;·&nbsp; <span style="color:var(--orange)">Orange = ${dB.label}</span></div></div></div>`;
+    const tw=document.createElement('div'); tw.className='tw';
+    const tbl=document.createElement('table'); tbl.className='cmp-tbl';
+    tbl.innerHTML=`<thead><tr>
+      <th>Unit</th>
+      <th class="n">Usage A (${unit})</th><th class="n">Usage B (${unit})</th>
+      <th class="n">Δ Usage</th><th class="n">Charge A (R)</th>
+      <th class="n">Charge B (R)</th><th class="n">Δ Charge</th>
+    </tr></thead><tbody></tbody>`;
+    const tbody=tbl.querySelector('tbody');
+    const maxUnits=Math.max(dA[type].length,dB[type].length);
+    for(let i=0;i<maxUnits;i++){
+      const rA=dA[type][i],rB=dB[type][i];
+      const oA=rA?parseFloat(rA.opening):NaN,cA=rA?parseFloat(rA.closing):NaN;
+      const oB=rB?parseFloat(rB.opening):NaN,cB=rB?parseFloat(rB.closing):NaN;
+      const uA=(!isNaN(oA)&&!isNaN(cA)&&cA>=oA)?cA-oA:null;
+      const uB=(!isNaN(oB)&&!isNaN(cB)&&cB>=oB)?cB-oB:null;
+      const chA=uA!==null?uA*rateA:null;
+      const chB=uB!==null?uB*rateB:null;
+      const dU=uA!==null&&uB!==null?uB-uA:null;
+      const dC=chA!==null&&chB!==null?chB-chA:null;
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td class="ul">Unit ${i+1}</td>
+        <td class="n val-a">${uA!==null?uA.toFixed(dp):'—'}</td>
+        <td class="n val-b">${uB!==null?uB.toFixed(dp):'—'}</td>
+        <td class="n ${dU===null?'':dU>0?'delta-neg':'delta-pos'}">${dU!==null?(dU>=0?'+':'')+dU.toFixed(dp):'—'}</td>
+        <td class="n val-a">${chA!==null?'R'+fmt(chA):'—'}</td>
+        <td class="n val-b">${chB!==null?'R'+fmt(chB):'—'}</td>
+        <td class="n ${dC===null?'':dC>0?'delta-neg':'delta-pos'}">${dC!==null?(dC>=0?'+R':'−R')+fmt(Math.abs(dC)):'—'}</td>`;
+      tbody.appendChild(tr);
+    }
+    tw.appendChild(tbl); card.appendChild(tw); div.appendChild(card);
+  });
+}
+
+// ═══════════════ DASHBOARD ═══════════════
+function renderDashboard(){
+  Object.values(charts).forEach(c=>c.destroy()); charts={};
+  const dc=document.getElementById('dashContent'); dc.innerHTML='';
+  const keys=Object.keys(months).sort();
+  if(!keys.length){
+    dc.innerHTML='<div class="dash-empty"><svg width="60" height="60" viewBox="0 0 60 60" fill="none"><rect x="4" y="26" width="13" height="26" rx="3" stroke="#B8CCE4" stroke-width="2"/><rect x="23" y="15" width="13" height="37" rx="3" stroke="#B8CCE4" stroke-width="2"/><rect x="42" y="7" width="13" height="45" rx="3" stroke="#B8CCE4" stroke-width="2"/></svg><p>Add months and enter data to unlock insights.</p></div>';
+    return;
+  }
+
+  // Aggregate all-time
+  let twColl=0,teColl=0,twMun=0,teMun=0;
+  const labels=[],wCollA=[],eCollA=[],wMunA=[],eMunA=[],wDiffA=[],eDiffA=[];
+  keys.forEach(key=>{
+    const d=months[key];const b=d.billing;
+    labels.push(d.label.substring(0,3)+' '+d.year);
+    const wT=calcTotals(key,'water');const eT=calcTotals(key,'elec');
+    const wM=parseFloat(b.waterAmount)||0;const eM=parseFloat(b.elecAmount)||0;
+    wCollA.push(+wT.charge.toFixed(2));eCollA.push(+eT.charge.toFixed(2));
+    wMunA.push(wM);eMunA.push(eM);
+    wDiffA.push(+(wT.charge-wM).toFixed(2));eDiffA.push(+(eT.charge-eM).toFixed(2));
+    twColl+=wT.charge;teColl+=eT.charge;twMun+=wM;teMun+=eM;
+  });
+  const twD=twColl-twMun,teD=teColl-teMun;
+
+  // ── ALL-TIME KPIs ──
+  dc.appendChild(makeSection('📊 All-Time Overview'));
+  const kpis=document.createElement('div'); kpis.className='dash-grid';
+  kpis.innerHTML=`
+    <div class="ds dw"><div class="dl">💧 Water Collected</div>
+      <div class="dv">R${fmt(twColl)}</div>
+      <div class="dsub">vs R${fmt(twMun)} municipal</div>
+      ${twMun>0?`<div class="dbadge ${twD>=0?'over':'under'}">${twD>=0?'+':'−'}R${fmt(Math.abs(twD))}</div>`:'<div class="dbadge na">No billing</div>'}
+    </div>
+    <div class="ds de"><div class="dl">⚡ Electricity Collected</div>
+      <div class="dv">R${fmt(teColl)}</div>
+      <div class="dsub">vs R${fmt(teMun)} municipal</div>
+      ${teMun>0?`<div class="dbadge ${teD>=0?'over':'under'}">${teD>=0?'+':'−'}R${fmt(Math.abs(teD))}</div>`:'<div class="dbadge na">No billing</div>'}
+    </div>
+    <div class="ds drw"><div class="dl">📊 Water Recovery Rate</div>
+      <div class="dv">${twMun>0?(twColl/twMun*100).toFixed(1)+'%':'—'}</div>
+      <div class="dsub">${twMun>0?(twD>=0?'Over-recovery':'Under-recovery'):'Enter billing data'}</div>
+    </div>
+    <div class="ds dre"><div class="dl">📊 Electricity Recovery Rate</div>
+      <div class="dv">${teMun>0?(teColl/teMun*100).toFixed(1)+'%':'—'}</div>
+      <div class="dsub">${teMun>0?(teD>=0?'Over-recovery':'Under-recovery'):'Enter billing data'}</div>
+    </div>`;
+  dc.appendChild(kpis);
+
+  // ── YTD ──
+  const currentYear=new Date().getFullYear();
+  const ytdKeys=keys.filter(k=>months[k].year==currentYear);
+  dc.appendChild(makeSection(`📅 Year to Date — ${currentYear}`));
+  if(ytdKeys.length===0){
+    dc.insertAdjacentHTML('beforeend','<div class="empty-state" style="padding:1.5rem"><p>No data for '+currentYear+' yet.</p></div>');
+  } else {
+    let ytdWC=0,ytdEC=0,ytdWM=0,ytdEM=0,ytdLeaks=0,ytdUnitsW=0,ytdUnitsE=0;
+    ytdKeys.forEach(key=>{
+      const d=months[key];const b=d.billing;
+      const wT=calcTotals(key,'water');const eT=calcTotals(key,'elec');
+      ytdWC+=wT.charge;ytdEC+=eT.charge;
+      ytdWM+=parseFloat(b.waterAmount)||0;ytdEM+=parseFloat(b.elecAmount)||0;
+      ytdLeaks+=d.water.filter(r=>r.flagLeak).length;
+      ytdUnitsW+=d.water.filter(r=>parseFloat(r.closing)>0).length;
+      ytdUnitsE+=d.elec.filter(r=>parseFloat(r.closing)>0).length;
+    });
+    const ytdWD=ytdWC-ytdWM,ytdED=ytdEC-ytdEM;
+    const ytdGrid=document.createElement('div'); ytdGrid.className='ytd-grid';
+    ytdGrid.innerHTML=`
+      <div class="ytd-stat"><div class="yl">💧 YTD Water Revenue</div><div class="yv">R${fmt(ytdWC)}</div><div class="ys">${ytdKeys.length} months</div></div>
+      <div class="ytd-stat"><div class="yl">⚡ YTD Elec Revenue</div><div class="yv">R${fmt(ytdEC)}</div><div class="ys">${ytdKeys.length} months</div></div>
+      <div class="ytd-stat"><div class="yl">💰 YTD Total Revenue</div><div class="yv">R${fmt(ytdWC+ytdEC)}</div><div class="ys">Water + Electricity</div></div>
+      <div class="ytd-stat"><div class="yl">🏛 YTD Municipal Cost</div><div class="yv">R${fmt(ytdWM+ytdEM)}</div><div class="ys">Total billed by Mogale City</div></div>
+      <div class="ytd-stat"><div class="yl">📈 YTD Net Position</div>
+        <div class="yv" style="color:${(ytdWD+ytdED)>=0?'var(--green2)':'var(--red)'}">${(ytdWD+ytdED)>=0?'+':'−'}R${fmt(Math.abs(ytdWD+ytdED))}</div>
+        <div class="ys">${(ytdWD+ytdED)>=0?'Over-recovery':'Under-recovery'}</div></div>
+      <div class="ytd-stat"><div class="yl">🔴 YTD Problems Logged</div><div class="yv ${ytdLeaks>0?'warn':''}">${ytdLeaks}</div><div class="ys">water flags this year</div></div>`;
+    dc.appendChild(ytdGrid);
+  }
+
+  // ── CHARTS ──
+  if(keys.length>1){
+    dc.appendChild(makeSection('📈 Monthly Trends'));
+    const c2=document.createElement('div'); c2.className='charts-2';
+    c2.innerHTML=`
+      <div class="chart-card"><div class="cc-head"><h3>💧 Water: Collected vs Municipal</h3></div>
+        <div class="cc-body"><canvas id="cW"></canvas></div></div>
+      <div class="chart-card"><div class="cc-head"><h3>⚡ Electricity: Collected vs Municipal</h3></div>
+        <div class="cc-body"><canvas id="cE"></canvas></div></div>`;
+    dc.appendChild(c2);
+    const c3=document.createElement('div'); c3.className='chart-card';
+    c3.innerHTML=`<div class="cc-head"><h3>📈 Monthly Recovery Delta (R)</h3>
+      <span style="font-size:.67rem;color:var(--muted)">Green = over-recovery · Red = under-recovery</span></div>
+      <div class="cc-body"><canvas id="cDelta"></canvas></div>`;
+    dc.appendChild(c3);
+
+    setTimeout(()=>{
+      const opts={responsive:true,plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+        scales:{y:{ticks:{callback:v=>'R'+Math.round(v).toLocaleString()}}}};
+      charts.w=new Chart(document.getElementById('cW'),{type:'bar',data:{labels,datasets:[
+        {label:'Collected',data:wCollA,backgroundColor:'rgba(46,117,182,.78)',borderRadius:4},
+        {label:'Municipal',data:wMunA,backgroundColor:'rgba(197,90,17,.65)',borderRadius:4}
+      ]},options:JSON.parse(JSON.stringify(opts))});
+      charts.e=new Chart(document.getElementById('cE'),{type:'bar',data:{labels,datasets:[
+        {label:'Collected',data:eCollA,backgroundColor:'rgba(197,90,17,.78)',borderRadius:4},
+        {label:'Municipal',data:eMunA,backgroundColor:'rgba(31,56,100,.65)',borderRadius:4}
+      ]},options:JSON.parse(JSON.stringify(opts))});
+      const dcol=v=>v>=0?'rgba(30,107,60,.8)':'rgba(192,0,0,.75)';
+      charts.d=new Chart(document.getElementById('cDelta'),{type:'bar',
+        data:{labels:[...labels.map(l=>'W: '+l),...labels.map(l=>'E: '+l)],datasets:[
+          {label:'Water Δ',data:[...wDiffA,...Array(labels.length).fill(null)],backgroundColor:wDiffA.map(dcol),borderRadius:4},
+          {label:'Elec Δ',data:[...Array(labels.length).fill(null),...eDiffA],backgroundColor:eDiffA.map(dcol),borderRadius:4}
+        ]},options:{...JSON.parse(JSON.stringify(opts)),
+          scales:{y:{ticks:{callback:v=>'R'+Math.round(v).toLocaleString()},
+            grid:{color:ctx=>ctx.tick.value===0?'rgba(0,0,0,.25)':'rgba(0,0,0,.05)',
+              lineWidth:ctx=>ctx.tick.value===0?2:1}}}}});
+    },80);
+  }
+
+  // ── INSIGHTS ──
+  dc.appendChild(makeSection('🔍 Insights'));
+  const ig=document.createElement('div'); ig.className='ins-grid';
+
+  const wTop=[]; keys.forEach(key=>{months[key].water.forEach(r=>{
+    const o=parseFloat(r.opening),c=parseFloat(r.closing);
+    if(!isNaN(o)&&!isNaN(c)&&c>=o)wTop.push({unit:r.unit,usage:c-o,month:months[key].label});
+  });});
+  wTop.sort((a,b)=>b.usage-a.usage);
+  const ic1=document.createElement('div'); ic1.className='ins-card';
+  ic1.innerHTML=`<h4>💧 Top 5 Water Consumers</h4>${wTop.slice(0,5).map(u=>
+    `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
+    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(4)} kl</span></div>`
+  ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic1);
+
+  const eTop=[]; keys.forEach(key=>{months[key].elec.forEach(r=>{
+    const o=parseFloat(r.opening),c=parseFloat(r.closing);
+    if(!isNaN(o)&&!isNaN(c)&&c>=o)eTop.push({unit:r.unit,usage:c-o,month:months[key].label});
+  });});
+  eTop.sort((a,b)=>b.usage-a.usage);
+  const ic2=document.createElement('div'); ic2.className='ins-card';
+  ic2.innerHTML=`<h4>⚡ Top 5 Electricity Consumers</h4>${eTop.slice(0,5).map(u=>
+    `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
+    <span class="irv ${u.usage>500?'amber':''}">${u.usage.toFixed(0)} kWh</span></div>`
+  ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic2);
+
+  const leakList=[]; keys.forEach(key=>{months[key].water.forEach(r=>{
+    if(r.flagLeak){const o=parseFloat(r.opening),c=parseFloat(r.closing);
+      leakList.push({unit:r.unit,usage:(!isNaN(o)&&!isNaN(c)&&c>=o)?c-o:null,month:months[key].label,notes:r.notes});}
+  });});
+  const ic3=document.createElement('div'); ic3.className='ins-card';
+  ic3.innerHTML=`<h4>🔴 All Flagged Problems</h4>
+    ${leakList.length?leakList.map(l=>`<div class="leak-item">
+      <div><span class="li-u">Unit ${l.unit}</span><br>
+        <span class="li-m">${l.month} · ${l.notes||'Possible leak'}</span></div>
+      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?l.usage.toFixed(4)+' kl':'—'}</span>
+    </div>`).join(''):'<div class="no-data">No problems flagged 👍</div>'}`; ig.appendChild(ic3);
+
+  const ic4=document.createElement('div'); ic4.className='ins-card';
+  const allTotal=keys.reduce((s,k)=>{const wT=calcTotals(k,'water');const eT=calcTotals(k,'elec');return s+wT.charge+eT.charge;},0);
+  ic4.innerHTML=`<h4>📅 Month Summary</h4>
+    ${keys.map(key=>{
+      const wT=calcTotals(key,'water');const eT=calcTotals(key,'elec');
+      const b=months[key].billing;
+      const wM=parseFloat(b.waterAmount)||0;const eM=parseFloat(b.elecAmount)||0;
+      const total=wT.charge+eT.charge;const mun=wM+eM;const diff=total-mun;
+      return `<div class="ir"><span class="irlbl">${months[key].label}</span>
+        <div style="text-align:right">
+          <div style="font-family:var(--mono);font-size:.74rem;font-weight:500">R${fmt(total)}</div>
+          ${mun>0?`<div style="font-family:var(--mono);font-size:.66rem;color:${diff>=0?'var(--green2)':'var(--red)'}">${diff>=0?'+':'−'}R${fmt(Math.abs(diff))}</div>`:''}
+        </div></div>`;
+    }).join('')}
+    <div class="ir" style="border-top:2px solid var(--border);margin-top:.3rem;padding-top:.5rem;font-weight:700">
+      <span class="irlbl" style="font-weight:700">All Months Total</span>
+      <span class="irv">R${fmt(allTotal)}</span></div>`; ig.appendChild(ic4);
+
+  dc.appendChild(ig);
+
+  const er=document.createElement('div'); er.className='exp-row'; er.style.marginTop='1.4rem';
+  er.innerHTML=`<button class="btn-exp" onclick="exportExcel()">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M2 10.5h10M7 2v7M4.5 6l2.5 3L9.5 6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Export All to Excel</button>`;
+  dc.appendChild(er);
+}
+
+function makeSection(title){
+  const d=document.createElement('div'); d.className='section-hdr'; d.textContent=title; return d;
+}
+
+// ═══════════════ INVOICES ═══════════════
+// ═══════════════ PROPERTY SETTINGS ═══════════════
+let propSettings={
+  complex:'',addr1:'',addr2:'',contact:'',email:'',phone:'',
+  bank:'',accNo:'',branch:'',accType:'',dueDays:'30',vat:''
+};
+const PROP_STORE='propSettings';
+
+function savePropToDB(){
+  if(!db)return;
+  db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings});
+}
+
+async function loadPropFromDB(){
+  return new Promise((res)=>{
+    if(!db){res();return;}
+    const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
+    req.onsuccess=e=>{
+      if(e.target.result){
+        const {key,...data}=e.target.result;
+        propSettings={...propSettings,...data};
+      }
+      res();
+    };
+    req.onerror=()=>res();
+  });
+}
+
+function ps(k){return propSettings[k]||'';}
+
+function updateHeaderComplex(){
+  const el=document.getElementById('headerComplexName');
+  if(el) el.textContent=propSettings.complex||'Utility Management';
+}
+
+function updatePropertyBanner(){
+  const el=document.getElementById('invPropertySummary');
+  if(!el)return;
+  const parts=[propSettings.complex,propSettings.addr1,propSettings.addr2,propSettings.contact].filter(Boolean);
+  el.textContent=parts.length?parts.join('  |  '):'No property details set — click Edit to configure.';
+}
+
+function renderPropDisplayGrid(){
+  const grid=document.getElementById('propDisplayGrid');
+  if(!grid)return;
+  const fields=[
+    ['Complex Name',ps('complex')],['Address',([ps('addr1'),ps('addr2')].filter(Boolean).join(', '))||'—'],
+    ['Contact / Manager',ps('contact')||'—'],['Email',ps('email')||'—'],
+    ['Phone',ps('phone')||'—'],['Bank',ps('bank')||'—'],
+    ['Account Number',ps('accNo')||'—'],['Branch Code',ps('branch')||'—'],
+    ['Account Type',ps('accType')||'—'],['Payment Due',ps('dueDays')?ps('dueDays')+' days':'30 days'],
+    ['VAT Number',ps('vat')||'None'],
+  ];
+  grid.innerHTML=fields.map(([l,v])=>`
+    <div style="padding:.5rem 0;border-bottom:1px solid var(--sky)">
+      <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.18rem">${l}</div>
+      <div style="font-size:.82rem;color:var(--text);font-weight:500">${v}</div>
+    </div>`).join('');
+}
+
+function togglePropEdit(){
+  const edit=document.getElementById('propEditMode');
+  const view=document.getElementById('propViewMode');
+  const btn=document.getElementById('propEditBtn');
+  if(edit.style.display==='none'){
+    // populate fields
+    const fields=['complex','addr1','addr2','contact','email','phone','bank','accNo','branch','accType','dueDays','vat'];
+    fields.forEach(f=>{const el=document.getElementById('inv'+f.charAt(0).toUpperCase()+f.slice(1));if(el)el.value=propSettings[f]||'';});
+    edit.style.display='block';view.style.display='none';
+    btn.textContent='Cancel';
+  } else {
+    cancelPropEdit();
+  }
+}
+
+function cancelPropEdit(){
+  document.getElementById('propEditMode').style.display='none';
+  document.getElementById('propViewMode').style.display='block';
+  document.getElementById('propEditBtn').textContent='Edit';
+}
+
+function savePropSettings(){
+  const fields={complex:'invComplex',addr1:'invAddr1',addr2:'invAddr2',contact:'invContact',
+    email:'invEmail',phone:'invPhone',bank:'invBank',accNo:'invAccNo',
+    branch:'invBranch',accType:'invAccType',dueDays:'invDueDays',vat:'invVAT'};
+  Object.entries(fields).forEach(([k,id])=>{
+    const el=document.getElementById(id);
+    if(el) propSettings[k]=el.value;
+  });
+  savePropToDB();
+  cancelPropEdit();
+  renderPropDisplayGrid();
+  updateHeaderComplex();
+  updatePropertyBanner();
+  showToast('Property settings saved');
+}
+
+function goToAdminProperty(){
+  const btn=document.querySelector('.nav-btn:last-child');
+  showPage('admin',btn);
+  setTimeout(()=>document.getElementById('propEditBtn')?.scrollIntoView({behavior:'smooth',block:'center'}),200);
+}
+
+// ═══════════════ INVOICES ═══════════════
+function populateInvMonths(){
+  const sel=document.getElementById('invMonth'); if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">-- choose month --</option>';
+  Object.keys(months).sort().forEach(k=>{
+    const o=document.createElement('option');
+    o.value=k; o.textContent=months[k].label;
+    if(k===cur)o.selected=true;
+    sel.appendChild(o);
+  });
+  populateInvUnits();
+  updatePropertyBanner();
+}
+
+function populateInvUnits(){
+  const mSel=document.getElementById('invMonth');
+  const uSel=document.getElementById('invUnit'); if(!mSel||!uSel)return;
+  const key=mSel.value;
+  uSel.innerHTML='<option value="">-- choose unit --</option>';
+  if(!key||!months[key])return;
+  months[key].water.forEach(r=>{
+    const o=document.createElement('option'); o.value=r.unit; o.textContent='Unit '+r.unit; uSel.appendChild(o);
+  });
+}
+
+let previewKey=null, previewUnit=null;
+
+function previewInvoice(){
+  const key=document.getElementById('invMonth').value;
+  const unitNum=parseInt(document.getElementById('invUnit').value);
+  if(!key||isNaN(unitNum)){showToast('Select a month and unit','#C55A11');return;}
+  previewKey=key; previewUnit=unitNum;
+  const html=buildInvoiceHTML(key,unitNum);
+  document.getElementById('invPreviewBody').innerHTML=html;
+  document.getElementById('invModal').style.display='block';
+  document.body.style.overflow='hidden';
+}
+
+function closeInvModal(){
+  document.getElementById('invModal').style.display='none';
+  document.body.style.overflow='';
+}
+
+function downloadFromPreview(){
+  if(previewKey&&previewUnit) buildInvoicePDF(previewKey,previewUnit);
+  closeInvModal();
+}
+
+function generateAllInvoices(){
+  const key=document.getElementById('invMonth').value;
+  if(!key){showToast('Select a month first','#C55A11');return;}
+  const d=months[key];
+  if(!confirm('Download invoices for all '+d.units+' units in '+d.label+'?'))return;
+  d.water.forEach(r=>buildInvoicePDF(key,r.unit,false));
+  showToast('Downloaded '+d.units+' invoices','var(--blue)');
+}
+
+function invData(key,unitNum){
+  const d=months[key];
+  const wRow=d.water.find(r=>r.unit===unitNum)||{};
+  const eRow=d.elec.find(r=>r.unit===unitNum)||{};
+  const wO=parseFloat(wRow.opening),wC=parseFloat(wRow.closing);
+  const eO=parseFloat(eRow.opening),eC=parseFloat(eRow.closing);
+  const wUsage=(!isNaN(wO)&&!isNaN(wC)&&wC>=wO)?wC-wO:0;
+  const eUsage=(!isNaN(eO)&&!isNaN(eC)&&eC>=eO)?eC-eO:0;
+  const wCharge=wUsage*d.waterRate;
+  const eCharge=eUsage*d.elecRate;
+  const total=wCharge+eCharge;
+  const invoiceDate=new Date();
+  const dueDays=parseInt(ps('dueDays'))||30;
+  const dueDate=new Date(invoiceDate.getTime()+dueDays*86400000);
+  const fmtDate=dt=>dt.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
+  const ownerName=document.getElementById('invOwnerName')?.value||'Unit '+unitNum+' Owner';
+  const ownerEmail=document.getElementById('invOwnerEmail')?.value||'';
+  const invNo=document.getElementById('invNumber')?.value||'INV-'+d.year+d.month+'-'+String(unitNum).padStart(3,'0');
+  return {d,wRow,eRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,
+    invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo};
+}
+
+function buildInvoiceHTML(key,unitNum){
+  const {d,wRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo}=invData(key,unitNum);
+  const complexName=ps('complex')||'Utility Management';
+  const addr=[ps('addr1'),ps('addr2')].filter(Boolean).join(', ');
+  const note=wRow.notes||(wRow.flagLeak?'Possible leak flagged - please investigate':'');
+
+  return `<style>
+    .inv-preview{font-family:Arial,Helvetica,sans-serif;color:#1A1A2E;font-size:13px}
+    .inv-preview .hdr{background:#1F3864;color:#fff;padding:24px 32px;display:flex;justify-content:space-between;align-items:flex-start}
+    .inv-preview .hdr-left h2{font-size:22px;font-weight:800;letter-spacing:.04em;margin-bottom:4px}
+    .inv-preview .hdr-left p{font-size:11px;color:#B4C8E2;margin:1px 0}
+    .inv-preview .hdr-right{text-align:right;font-size:11px;color:#B4C8E2}
+    .inv-preview .hdr-right .inv-num{font-size:16px;font-weight:700;color:#fff;margin-bottom:4px}
+    .inv-preview .accent-bar{height:4px;background:#2E75B6}
+    .inv-preview .body{padding:24px 32px}
+    .inv-preview .bill-to{margin-bottom:18px}
+    .inv-preview .bill-to .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5A7099;margin-bottom:4px}
+    .inv-preview .bill-to .name{font-size:16px;font-weight:700;color:#1F3864;margin-bottom:2px}
+    .inv-preview .bill-to .unit{font-size:12px;color:#2E75B6;font-weight:600}
+    .inv-preview .chips{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+    .inv-preview .chip{border-radius:6px;padding:8px 14px;color:#fff;min-width:130px}
+    .inv-preview .chip .cl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
+    .inv-preview .chip .cv{font-size:14px;font-weight:700}
+    .inv-preview table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px}
+    .inv-preview thead th{background:#1F3864;color:#fff;padding:7px 10px;text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+    .inv-preview thead th:not(:first-child){text-align:right}
+    .inv-preview tbody tr:nth-child(even){background:#EBF3FA}
+    .inv-preview tbody td{padding:8px 10px;border-bottom:1px solid #D6E4F0}
+    .inv-preview tbody td:not(:first-child){text-align:right;font-family:monospace}
+    .inv-preview .note{background:#FFE0E0;border-left:3px solid #C00000;padding:7px 12px;font-size:11px;color:#C00000;margin-bottom:14px;border-radius:0 4px 4px 0}
+    .inv-preview .totals{display:flex;justify-content:flex-end;margin-bottom:18px}
+    .inv-preview .totals-box{width:260px}
+    .inv-preview .tot-row{display:flex;justify-content:space-between;padding:5px 12px;font-size:12px}
+    .inv-preview .tot-row.final{background:#1F3864;color:#fff;font-weight:700;font-size:14px;border-radius:4px;margin-top:4px}
+    .inv-preview .banking{background:#D6E4F0;border-radius:6px;padding:12px 16px;margin-bottom:14px;font-size:11px}
+    .inv-preview .banking h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#1F3864;margin-bottom:8px}
+    .inv-preview .bank-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+    .inv-preview .bank-item .bk-l{color:#5A7099;font-size:10px}.inv-preview .bank-item .bk-v{font-weight:600;color:#1A1A2E}
+    .inv-preview .ref{font-size:11px;color:#5A7099;margin-bottom:14px}
+    .inv-preview .footer{background:#1F3864;color:#7FAAC0;padding:10px 32px;text-align:center;font-size:10px}
+  </style>
+  <div class="inv-preview">
+    <div class="hdr">
+      <div class="hdr-left">
+        <h2>UTILITY INVOICE</h2>
+        <p>${complexName}</p>
+        ${addr?`<p>${addr}</p>`:''}
+      </div>
+      <div class="hdr-right">
+        <div class="inv-num">${invNo}</div>
+        <div>Date: ${fmtDate(invoiceDate)}</div>
+        <div>Due: ${fmtDate(dueDate)}</div>
+        <div>Period: ${d.label}</div>
+      </div>
+    </div>
+    <div class="accent-bar"></div>
+    <div class="body">
+      <div class="bill-to">
+        <div class="lbl">Bill To</div>
+        <div class="name">${ownerName}</div>
+        ${ownerEmail?`<div style="font-size:11px;color:#5A7099">${ownerEmail}</div>`:''}
+        <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
+      </div>
+      <div class="chips">
+        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(4)} kl</div></div>
+        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
+        <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Description</th><th>Opening</th><th>Closing</th><th>Usage</th><th>Rate</th><th>Amount (R)</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td>Water Consumption</td>
+            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(4):'--'}</td>
+            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(4):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(4)} kl</td>
+            <td style="text-align:right">R${d.waterRate}/kl</td>
+            <td style="text-align:right;font-weight:700">R${fmt(wCharge)}</td>
+          </tr>
+          <tr>
+            <td>Electricity Consumption</td>
+            <td style="text-align:right">${!isNaN(eO)?eO.toFixed(0):'--'}</td>
+            <td style="text-align:right">${!isNaN(eC)?eC.toFixed(0):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${eUsage.toFixed(0)} kWh</td>
+            <td style="text-align:right">R${d.elecRate}/kWh</td>
+            <td style="text-align:right;font-weight:700">R${fmt(eCharge)}</td>
+          </tr>
+        </tbody>
+      </table>
+      ${note?`<div class="note">Note: ${note}</div>`:''}
+      <div class="totals"><div class="totals-box">
+        <div class="tot-row"><span>Subtotal</span><span>R${fmt(total)}</span></div>
+        ${ps('vat')?`<div class="tot-row"><span>VAT (exempt)</span><span>R0.00</span></div>`:''}
+        <div class="tot-row final"><span>TOTAL DUE</span><span>R${fmt(total)}</span></div>
+      </div></div>
+      ${(ps('bank')||ps('accNo'))?`<div class="banking">
+        <h4>Banking Details</h4>
+        <div class="bank-grid">
+          ${ps('bank')?`<div class="bank-item"><div class="bk-l">Bank</div><div class="bk-v">${ps('bank')}</div></div>`:''}
+          ${ps('accNo')?`<div class="bank-item"><div class="bk-l">Account Number</div><div class="bk-v">${ps('accNo')}</div></div>`:''}
+          ${ps('branch')?`<div class="bank-item"><div class="bk-l">Branch Code</div><div class="bk-v">${ps('branch')}</div></div>`:''}
+          ${ps('accType')?`<div class="bank-item"><div class="bk-l">Account Type</div><div class="bk-v">${ps('accType')}</div></div>`:''}
+        </div>
+      </div>`:''}
+      <div class="ref">Payment Reference: ${invNo} / Unit ${unitNum}</div>
+    </div>
+    <div class="footer">
+      ${[ps('contact'),ps('email'),ps('phone')].filter(Boolean).join('  |  ')||complexName}
+      &nbsp;&nbsp;|&nbsp;&nbsp; Payment due: ${fmtDate(dueDate)}
+    </div>
+  </div>`;
+}
+
+function buildInvoicePDF(key,unitNum,autoOpen=true){
+  const {jsPDF}=window.jspdf;
+  const {d,wRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo}=invData(key,unitNum);
+  const complexName=ps('complex')||'Utility Management';
+  const note=wRow.notes||(wRow.flagLeak?'Possible leak flagged - please investigate':'');
+
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210,H=297;
+
+  doc.setFillColor(240,244,249); doc.rect(0,0,W,H,'F');
+  doc.setFillColor(255,255,255); doc.rect(0,0,W,260,'F');
+  doc.setFillColor(31,56,100); doc.rect(0,0,W,42,'F');
+  doc.setFillColor(46,117,182); doc.rect(0,38,W,4,'F');
+
+  // Logo circle
+  doc.setFillColor(46,117,182); doc.circle(20,21,10,'F');
+  doc.setFillColor(126,200,227); doc.circle(20,21,6,'F');
+  doc.setFillColor(255,255,255); doc.circle(20,21,3,'F');
+
+  // Header text - ASCII safe only
+  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(255,255,255);
+  doc.text('UTILITY INVOICE',35,16);
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(180,200,230);
+  doc.text(complexName,35,23);
+  if(ps('addr1')) doc.text(ps('addr1'),35,28);
+  if(ps('addr2')) doc.text(ps('addr2'),35,33);
+
+  doc.setFontSize(8); doc.setTextColor(180,200,230);
+  doc.text('INVOICE NO',155,13);doc.text('DATE',155,20);doc.text('DUE DATE',155,27);doc.text('PERIOD',155,34);
+  doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+  doc.text(invNo,195,13,{align:'right'});
+  doc.text(fmtDate(invoiceDate),195,20,{align:'right'});
+  doc.text(fmtDate(dueDate),195,27,{align:'right'});
+  doc.text(d.label,195,34,{align:'right'});
+
+  let y=54;
+  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(90,112,153);
+  doc.text('BILL TO',15,y); y+=5;
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(31,56,100);
+  doc.text(ownerName,15,y); y+=6;
+  if(ownerEmail){ doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90,112,153); doc.text(ownerEmail,15,y); y+=5; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(46,117,182);
+  doc.text('Unit '+unitNum+'  |  '+complexName,15,y); y+=12;
+
+  // Chips
+  function chip(lx,ly,label,value,r,g,b){
+    doc.setFillColor(r,g,b); doc.roundedRect(lx,ly-5,52,12,2,2,'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(255,255,255);
+    doc.text(label,lx+3,ly);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text(value,lx+3,ly+5);
+  }
+  chip(15,y,'WATER USAGE',wUsage.toFixed(4)+' kl',46,117,182);
+  chip(70,y,'ELECTRICITY',eUsage.toFixed(0)+' kWh',197,90,17);
+  chip(125,y,'TOTAL DUE','R'+fmt(total),31,56,100);
+  y+=20;
+
+  doc.setDrawColor(184,204,228); doc.setLineWidth(.3); doc.line(15,y,195,y); y+=8;
+
+  // Table header
+  doc.setFillColor(31,56,100); doc.rect(15,y-4,180,8,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(255,255,255);
+  doc.text('Description',18,y+.5);
+  doc.text('Opening',82,y+.5,{align:'right'});
+  doc.text('Closing',110,y+.5,{align:'right'});
+  doc.text('Usage',135,y+.5,{align:'right'});
+  doc.text('Rate',157,y+.5,{align:'right'});
+  doc.text('Amount (R)',193,y+.5,{align:'right'});
+  y+=11;
+
+  function tRow(desc,open,close,usage,rate,amount,shade){
+    if(shade){doc.setFillColor(235,243,250);doc.rect(15,y-4,180,8,'F');}
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(26,26,46);
+    doc.text(desc,18,y+.5);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(90,112,153);
+    doc.text(open,82,y+.5,{align:'right'});
+    doc.text(close,110,y+.5,{align:'right'});
+    doc.setTextColor(46,117,182); doc.text(usage,135,y+.5,{align:'right'});
+    doc.setTextColor(90,112,153); doc.text(rate,157,y+.5,{align:'right'});
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(31,56,100);
+    doc.text('R'+amount,193,y+.5,{align:'right'});
+    y+=9;
+  }
+
+  tRow('Water Consumption',
+    !isNaN(wO)?wO.toFixed(4):'--', !isNaN(wC)?wC.toFixed(4):'--',
+    wUsage.toFixed(4)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
+  tRow('Electricity Consumption',
+    !isNaN(eO)?eO.toFixed(0):'--', !isNaN(eC)?eC.toFixed(0):'--',
+    eUsage.toFixed(0)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
+
+  if(note){
+    y+=2; doc.setFontSize(7.5); doc.setTextColor(192,0,0); doc.setFont('helvetica','italic');
+    doc.text('Note: '+note,18,y); y+=7;
+  }
+
+  y+=2; doc.setDrawColor(184,204,228); doc.line(15,y,195,y); y+=4;
+
+  doc.setFillColor(217,225,242); doc.rect(120,y-1,75,10,'F');
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(90,112,153);
+  doc.text('Subtotal',125,y+5);
+  doc.setFont('helvetica','bold'); doc.setTextColor(31,56,100);
+  doc.text('R'+fmt(total),193,y+5,{align:'right'}); y+=14;
+
+  doc.setFillColor(31,56,100); doc.rect(120,y-1,75,11,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
+  doc.text('TOTAL DUE',125,y+6);
+  doc.text('R'+fmt(total),193,y+6,{align:'right'}); y+=18;
+
+  const bank=ps('bank'),accNo=ps('accNo'),branch=ps('branch'),accType=ps('accType');
+  if(bank||accNo){
+    doc.setFillColor(214,228,240); doc.rect(15,y-4,180,24,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(31,56,100);
+    doc.text('BANKING DETAILS',18,y); y+=5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(26,26,46);
+    const bd=[];
+    if(bank) bd.push('Bank: '+bank);
+    if(accNo) bd.push('Account: '+accNo);
+    if(branch) bd.push('Branch: '+branch);
+    if(accType) bd.push('Type: '+accType);
+    bd.forEach((t,i)=>{ doc.text(t,i%2===0?18:100,y+(Math.floor(i/2)*5)); });
+    y+=Math.ceil(bd.length/2)*5+4;
+  }
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(90,112,153);
+  doc.text('Payment Reference: '+invNo+' / Unit '+unitNum,15,y); y+=8;
+
+  doc.setFillColor(31,56,100); doc.rect(0,H-18,W,18,'F');
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(126,166,204);
+  const contact=[ps('contact'),ps('email'),ps('phone')].filter(Boolean).join('  |  ');
+  doc.text(contact||complexName,W/2,H-10,{align:'center'});
+  doc.setFontSize(7); doc.setTextColor(100,140,180);
+  doc.text('Payment due: '+fmtDate(dueDate)+'  |  Queries: '+(ps('email')||'contact manager'),W/2,H-5,{align:'center'});
+
+  const fname='Invoice_'+d.year+d.month+'_Unit'+unitNum+'.pdf';
+  doc.save(fname);
+  if(autoOpen) showToast('Invoice saved: '+fname);
+}
+// ═══════════════ ADMIN ═══════════════
+function renderAdminStatus(){
+  renderPropDisplayGrid();
+  const keys=Object.keys(months).sort();
+  const body=document.getElementById('adminStatusBody');
+  if(!body)return;
+  const totalW=keys.reduce((s,k)=>s+months[k].water.filter(r=>r.opening||r.closing).length,0);
+  const totalE=keys.reduce((s,k)=>s+months[k].elec.filter(r=>r.opening||r.closing).length,0);
+  const totalLeaks=keys.reduce((s,k)=>s+months[k].water.filter(r=>r.flagLeak).length,0);
+  body.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;font-size:.8rem">
+      <div style="padding:.75rem;background:var(--sky2);border-radius:8px">
+        <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:.3rem">Months Stored</div>
+        <div style="font-family:var(--mono);font-size:1.3rem;color:var(--navy)">${keys.length}</div>
+      </div>
+      <div style="padding:.75rem;background:var(--sky2);border-radius:8px">
+        <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:.3rem">Water Readings</div>
+        <div style="font-family:var(--mono);font-size:1.3rem;color:var(--navy)">${totalW}</div>
+      </div>
+      <div style="padding:.75rem;background:var(--sky2);border-radius:8px">
+        <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:.3rem">Elec Readings</div>
+        <div style="font-family:var(--mono);font-size:1.3rem;color:var(--navy)">${totalE}</div>
+      </div>
+      <div style="padding:.75rem;background:${totalLeaks>0?'var(--red-bg)':'var(--green-bg)'};border-radius:8px">
+        <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:.3rem">Flagged Problems</div>
+        <div style="font-family:var(--mono);font-size:1.3rem;color:${totalLeaks>0?'var(--red)':'var(--green)'}">${totalLeaks}</div>
+      </div>
+    </div>
+    <div style="margin-top:.85rem;font-size:.75rem;color:var(--muted)">
+      Months: ${keys.map(k=>months[k].label).join(', ')||'None'}<br>
+      Storage: IndexedDB (${db?'Connected':'Unavailable'}) · Browser: ${navigator.userAgent.split(' ').slice(-1)[0]}
+    </div>`;
+}
+
+function exportDB(){
+  const data=JSON.stringify(months,null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`MeterReadingsDB_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  showToast('✓ Database exported');
+}
+
+function importDB(input){
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      let count=0;
+      Object.entries(data).forEach(([key,val])=>{
+        months[key]=val; dbSave(key); count++;
+      });
+      renderTabs();
+      const keys=Object.keys(months).sort();
+      if(keys.length) activateTab(keys[keys.length-1]);
+      populateInvMonths(); renderAdminStatus();
+      showToast(`✓ Imported ${count} months from backup`,'var(--blue)');
+    }catch(err){
+      showToast('Import failed: '+err.message,'#C00000');
+    }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+function wipeAllData(){
+  if(!confirm('⚠️ Permanently delete ALL data from the local database? This cannot be undone.'))return;
+  if(!confirm('Last chance — wipe everything?'))return;
+  Object.keys(months).forEach(k=>{delete months[k];dbDelete(k);});
+  activeKey=null;
+  document.getElementById('activeBadge').textContent='No month selected';
+  document.getElementById('tabsRow').innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';
+  document.getElementById('entryContent').innerHTML='<div class="empty-state"><p>Data wiped. Add a new month to begin.</p></div>';
+  populateInvMonths(); renderAdminStatus();
+  showToast('All data wiped','#C00000');
+}
+
+// ═══════════════ EXCEL EXPORT ═══════════════
+function exportExcel(){
+  const wb=XLSX.utils.book_new();
+  const keys=Object.keys(months).sort();
+  if(!keys.length){showToast('No data to export','#C55A11');return;}
+  keys.forEach(key=>{
+    const d=months[key]; const short=d.label.replace(' ','_');
+    ['water','elec'].forEach(type=>{
+      const isW=type==='water';const rate=isW?d.waterRate:d.elecRate;const unit=isW?'kl':'kWh';
+      const endDay=new Date(parseInt(d.year),parseInt(d.month),0).getDate();
+      const start=`01/${d.month}/${d.year}`;const end=`${endDay}/${d.month}/${d.year}`;
+      const headers=['Unit Number','Start Date','End Date','Opening Meter Reading','Unit',
+        'Closing Meter Reading','Unit.1','Usage','Notes','Charge','Rate'];
+      const rows=d[type].map(r=>{
+        const o=parseFloat(r.opening),c=parseFloat(r.closing);
+        const u=(!isNaN(o)&&!isNaN(c)&&c>=o)?+(c-o).toFixed(4):null;
+        const ch=u!==null?+(u*rate).toFixed(2):null;
+        return [r.unit,start,end,isNaN(o)?null:o,unit,isNaN(c)?null:c,unit,
+          u,isW&&r.flagLeak?'Possible leak':(r.notes||null),ch,rate];
+      });
+      const tU=rows.reduce((s,r)=>s+(r[7]||0),0);
+      const tC=rows.reduce((s,r)=>s+(r[9]||0),0);
+      rows.push(['Total',null,null,null,null,null,null,+tU.toFixed(4),null,+tC.toFixed(2),null]);
+      const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+      ws['!cols']=[12,14,14,22,8,22,8,12,18,14,12].map(w=>({wch:w}));
+      XLSX.utils.book_append_sheet(wb,ws,`${short}_${isW?'Water':'Elec'}`.substring(0,31));
+    });
+    const b=d.billing;const wT=calcTotals(key,'water');const eT=calcTotals(key,'elec');
+    const wM=parseFloat(b.waterAmount)||0;const eM=parseFloat(b.elecAmount)||0;
+    const recRows=[
+      ['Mogale City Billing & Recovery Analysis'],[''],
+      ['Month',d.label],['Invoice No',b.invoiceNo||''],['Invoice Date',b.invoiceDate||''],[''],
+      ['','Water','Electricity'],
+      ['Municipal Usage Billed',b.waterUsage||0,b.elecUsage||0],
+      ['Municipal Amount Billed (R)',wM,eM],
+      ['Tenant Usage Collected',+wT.usage.toFixed(4),+eT.usage.toFixed(0)],
+      ['Tenant Charge Collected (R)',+wT.charge.toFixed(2),+eT.charge.toFixed(2)],
+      ['Recovery Difference (R)',+(wT.charge-wM).toFixed(2),+(eT.charge-eM).toFixed(2)],
+      ['Over / Under Recovery',wT.charge>=wM?'Over-Recovery':'Under-Recovery',eT.charge>=eM?'Over-Recovery':'Under-Recovery'],
+      ['Recovery Rate %',wM>0?+((wT.charge/wM)*100).toFixed(2):'N/A',eM>0?+((eT.charge/eM)*100).toFixed(2):'N/A'],
+    ];
+    const wsR=XLSX.utils.aoa_to_sheet(recRows);
+    wsR['!cols']=[32,20,20].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb,wsR,`${short}_Recovery`.substring(0,31));
+  });
+  XLSX.writeFile(wb,`Meter_Readings_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('✓ Excel exported!');
+}
+
+// ═══════════════ HELPERS ═══════════════
+function fmt(n){return n.toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function showToast(msg,color='var(--green)'){
+  const t=document.getElementById('toast');t.textContent=msg;t.style.background=color;
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
