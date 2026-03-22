@@ -3006,7 +3006,10 @@ async function backupToGitHub(){
     propSettings,
     unitOwners:Object.values(units)
   };
-  const content=btoa(unescape(encodeURIComponent(JSON.stringify(backup,null,2))));
+  // Encode to base64 without deprecated unescape()
+  const jsonStr=JSON.stringify(backup,null,2);
+  const utf8Bytes=new TextEncoder().encode(jsonStr);
+  const content=btoa(String.fromCharCode(...utf8Bytes));
 
   const headers={
     'Authorization':`token ${cfg.token}`,
@@ -3831,7 +3834,15 @@ async function addUser(){} // kept as stub — replaced by showAddUserModal flow
 // DAILY BACKUP SCHEDULER — Runs at 1:00 AM every day
 // ══════════════════════════════════════════════════════════════════════════════
 
+let dailyBackupTimeoutId=null;
+
 function scheduleDaily1amBackup(){
+  // Prevent duplicate schedulers from running
+  if(dailyBackupTimeoutId!==null){
+    console.log('[Daily Backup] Scheduler already running, skipping duplicate');
+    return;
+  }
+  
   // Calculate time until next 1:00 AM
   function getTimeUntilNextBackup(){
     const now=new Date();
@@ -3853,9 +3864,10 @@ function scheduleDaily1amBackup(){
     const mins=Math.floor((time%(1000*60*60))/(1000*60));
     console.log(`[Daily Backup] Next backup scheduled for ${nextRun.toLocaleString('en-ZA')} (in ${hours}h ${mins}m)`);
     
-    setTimeout(()=>{
+    dailyBackupTimeoutId=setTimeout(()=>{
       console.log('[Daily Backup] Running scheduled 1 AM backup…');
-      backupToGitHub();
+      backupToGitHub().catch(e=>console.error('[Daily Backup] Backup failed:',e));
+      dailyBackupTimeoutId=null;
       scheduleNext(); // Reschedule for tomorrow
     }, time);
   }
