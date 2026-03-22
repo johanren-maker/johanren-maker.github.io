@@ -2964,12 +2964,24 @@ async function backupToGitHub(){
     return;
   }
 
-  // Trim everything — catch any whitespace that crept in during save
-  cfg.owner = cfg.owner.trim();
-  cfg.repo  = cfg.repo.trim();
-  cfg.path  = (cfg.path||'backups/meter-readings-backup.json').trim();
-  cfg.branch= (cfg.branch||'main').trim();
-  cfg.token = cfg.token.trim();
+  cfg.owner  = cfg.owner.trim();
+  cfg.repo   = cfg.repo.trim();
+  cfg.path   = (cfg.path||'meter-readings-backup.json').trim().replace(/^\/+/,'');
+  cfg.branch = (cfg.branch||'main').trim();
+  cfg.token  = cfg.token.trim();
+
+  // Detect file:// — GitHub API CORS blocks file:// origins entirely
+  if(window.location.protocol==='file:'){
+    const lastEl=document.getElementById('ghLastBackup');
+    if(lastEl) lastEl.innerHTML=`<div style="background:var(--sky2);border-radius:7px;padding:.65rem .85rem;font-size:.75rem;line-height:1.7">
+      ⚠️ <strong>GitHub backup requires a web server — cannot run from a local file.</strong><br>
+      Options: &nbsp;① <a href="https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer" target="_blank" style="color:var(--blue)">VS Code Live Server</a> &nbsp;② Upload to <a href="https://pages.github.com" target="_blank" style="color:var(--blue)">GitHub Pages</a><br>
+      Until then, use the JSON export below and commit it manually.
+      <div style="margin-top:.5rem"><button onclick="exportDB()" class="btn-exp" style="font-size:.72rem;padding:.38rem .8rem">⬇ Export JSON Backup</button></div>
+    </div>`;
+    showToast('GitHub backup blocked on file:// — use VS Code Live Server','#C55A11');
+    return;
+  }
 
   // Show exactly what we're about to use — confirm in console before proceeding
   const apiBase=`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}`;
