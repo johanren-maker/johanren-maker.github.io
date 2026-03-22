@@ -3827,6 +3827,49 @@ async function deleteUserProfile(userId, email){
 
 async function addUser(){} // kept as stub — replaced by showAddUserModal flow
 
+// ══════════════════════════════════════════════════════════════════════════════
+// DAILY BACKUP SCHEDULER — Runs at 1:00 AM every day
+// ══════════════════════════════════════════════════════════════════════════════
+
+function scheduleDaily1amBackup(){
+  // Calculate time until next 1:00 AM
+  function getTimeUntilNextBackup(){
+    const now=new Date();
+    const next=new Date(now);
+    next.setHours(1,0,0,0); // Set to 1:00 AM
+    
+    // If it's already past 1 AM today, schedule for tomorrow
+    if(now.getTime()>next.getTime()){
+      next.setDate(next.getDate()+1);
+    }
+    
+    const msUntil=next.getTime()-now.getTime();
+    return {time:msUntil, nextRun:next};
+  }
+  
+  function scheduleNext(){
+    const {time, nextRun}=getTimeUntilNextBackup();
+    const hours=Math.floor(time/(1000*60*60));
+    const mins=Math.floor((time%(1000*60*60))/(1000*60));
+    console.log(`[Daily Backup] Next backup scheduled for ${nextRun.toLocaleString('en-ZA')} (in ${hours}h ${mins}m)`);
+    
+    setTimeout(()=>{
+      console.log('[Daily Backup] Running scheduled 1 AM backup…');
+      backupToGitHub();
+      scheduleNext(); // Reschedule for tomorrow
+    }, time);
+  }
+  
+  scheduleNext();
+}
+
+// Start the scheduler when the page loads
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', scheduleDaily1amBackup);
+} else {
+  scheduleDaily1amBackup();
+}
+
 </script>
 
 </body>
