@@ -238,12 +238,103 @@ function emailInvoice(){
   showToast('Email client opened for '+emails.join(', '));
 }
 
-function setDBStatus(){
-  const el=document.getElementById('dbStatus');
-  if(!el)return;
-  el.textContent='● Local DB';
-  el.style.color='#7EC8E3';
-  el.title='Using local IndexedDB';
+// ══════════════════════════════════════════
+// CLOUD DB CONFIG UI
+// ══════════════════════════════════════════
+function toggleCloudEdit(){
+  const edit=document.getElementById('cloudEditMode');
+  const view=document.getElementById('cloudViewMode');
+  const btn=document.getElementById('cloudEditBtn');
+  if(edit.style.display==='none'){
+    document.getElementById('sbUrlInput').value=SB_URL||'';
+    document.getElementById('sbKeyInput').value=SB_KEY||'';
+    edit.style.display='block'; view.style.display='none';
+    btn.textContent='Cancel';
+  } else { cancelCloudEdit(); }
+}
+function cancelCloudEdit(){
+  document.getElementById('cloudEditMode').style.display='none';
+  document.getElementById('cloudViewMode').style.display='block';
+  document.getElementById('cloudEditBtn').textContent=SB_URL?'Edit':'Configure';
+}
+async function saveCloudConfig(){
+  const url=(document.getElementById('sbUrlInput').value||'').trim().replace(/\/$/,'');
+  const key=(document.getElementById('sbKeyInput').value||'').trim();
+  if(!url||!key){showToast('Enter both URL and key','#C55A11');return;}
+  if(!url.startsWith('https://')){showToast('URL must start with https://','#C55A11');return;}
+  document.getElementById('cloudDbStatus').textContent='Testing connection...';
+  SB_URL=url; SB_KEY=key;
+  const ok=await checkSupabase();
+  if(!ok){
+    SB_URL=''; SB_KEY='';
+    document.getElementById('cloudDbStatus').textContent='Connection failed — check your URL and key';
+    document.getElementById('cloudDbStatus').style.color='var(--red)';
+    showToast('Connection failed — check credentials','#C00000');
+    return;
+  }
+  await saveCloudConfigToDB(url,key);
+  setDBStatus(true);
+  cancelCloudEdit();
+  renderCloudDisplay();
+  showToast('Connected to Supabase!');
+  if(Object.keys(months).length){
+    const syncNow=confirm('Connection successful!\n\nSync your local data to Supabase now?');
+    if(syncNow) await syncLocalToCloud();
+  }
+}
+async function testCloudConnection(){
+  if(!SB_URL||!SB_KEY){showToast('No credentials configured yet','#C55A11');return;}
+  document.getElementById('cloudDbStatus').textContent='Testing...';
+  const ok=await checkSupabase();
+  setDBStatus(ok);
+  renderCloudDisplay();
+  showToast(ok?'Connection OK':'Connection failed',ok?'var(--green)':'#C00000');
+}
+async function clearCloudConfig(){
+  if(!confirm('Disconnect from Supabase? Local IndexedDB data will be kept.'))return;
+  SB_URL=''; SB_KEY='';
+  await deleteCloudConfigFromDB();
+  dbOnline=false;
+  setDBStatus(false);
+  cancelCloudEdit();
+  renderCloudDisplay();
+  showToast('Disconnected from Supabase','#C55A11');
+}
+function renderCloudDisplay(){
+  const grid=document.getElementById('cloudDisplayGrid');
+  const status=document.getElementById('cloudDbStatus');
+  if(!grid||!status)return;
+  if(!SB_URL||!SB_KEY){
+    grid.innerHTML='<span style="color:var(--muted)">Not configured. Click Configure to connect.</span>';
+    status.textContent='Not configured'; status.style.color='var(--muted)';
+    document.getElementById('cloudEditBtn').textContent='Configure';
+    return;
+  }
+  const maskedKey=SB_KEY.substring(0,12)+'...'+SB_KEY.slice(-6);
+  grid.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .9rem">
+    <div><div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.15rem">Project URL</div>
+      <div style="font-family:var(--mono);font-size:.78rem;word-break:break-all">${SB_URL}</div></div>
+    <div><div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.15rem">Anon Key</div>
+      <div style="font-family:var(--mono);font-size:.78rem;color:var(--muted)">${maskedKey}</div></div>
+  </div>`;
+  status.textContent=dbOnline?'Connected — syncing to cloud':'Configured (offline)';
+  status.style.color=dbOnline?'var(--green2)':'var(--amber)';
+  document.getElementById('cloudEditBtn').textContent='Edit';
+}
+async function syncLocalToCloud(){
+  showToast('Syncing to cloud...','var(--blue)');
+  let synced=0;
+  for(const key of Object.keys(months)){ try{ await dbSave(key); synced++; }catch(e){} }
+  try{ await savePropToDB(); }catch(e){}
+  for(const u of Object.values(units)){ try{ await dbSaveUnit(u); }catch(e){} }
+  const idbUsers=await new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction('users','readonly').objectStore('users').getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+  for(const u of idbUsers){ try{ await dbSaveUser(u); }catch(e){} }
+  showToast('Synced '+synced+' months to cloud');
 }
 
 // ══════════════════════════════════════════
@@ -1007,6 +1098,52 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     <div id="adminStatusBody"><p style="font-size:.78rem;color:var(--muted)">Loading...</p></div>
   </div>
 
+  <div class="section-hdr">Cloud Database (Supabase)</div>
+  <div class="admin-card" style="max-width:700px" id="cloudDbCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+      <div>
+        <h3 style="margin-bottom:.2rem">Supabase Connection</h3>
+        <div id="cloudDbStatus" style="font-size:.74rem;color:var(--muted)">Not configured</div>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <button id="cloudEditBtn" onclick="toggleCloudEdit()" class="btn-ghost" style="font-size:.72rem;padding:.32rem .85rem">Configure</button>
+        <button onclick="testCloudConnection()" class="btn-ghost" style="font-size:.72rem;padding:.32rem .85rem">Test Connection</button>
+      </div>
+    </div>
+
+    <!-- View mode -->
+    <div id="cloudViewMode">
+      <div id="cloudDisplayGrid" style="font-size:.8rem;color:var(--muted)">Enter your Supabase credentials to enable cloud sync.</div>
+    </div>
+
+    <!-- Edit mode -->
+    <div id="cloudEditMode" style="display:none">
+      <div style="background:var(--sky2);border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <div style="font-size:.7rem;color:var(--navy);font-weight:600;margin-bottom:.75rem">
+          Find these in your Supabase project → Settings → API
+        </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:.75rem">
+          <div>
+            <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);display:block;margin-bottom:.25rem">Project URL</label>
+            <input type="text" id="sbUrlInput" placeholder="https://xxxxxxxxxxxx.supabase.co"
+              style="width:100%;padding:.44rem .7rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.82rem;background:#fff">
+          </div>
+          <div>
+            <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);display:block;margin-bottom:.25rem">Anon / Public Key</label>
+            <input type="password" id="sbKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              style="width:100%;padding:.44rem .7rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.78rem;background:#fff">
+            <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">Stored locally in your browser only — never sent to GitHub or anywhere else.</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.65rem;flex-wrap:wrap">
+        <button class="btn-exp" onclick="saveCloudConfig()">Save & Connect</button>
+        <button class="btn-ghost" onclick="cancelCloudEdit()">Cancel</button>
+        <button class="btn-danger" onclick="clearCloudConfig()" style="margin-left:auto">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
   <div class="section-hdr">User Management</div>
   <div class="admin-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
@@ -1102,8 +1239,35 @@ const MNAMES=['January','February','March','April','May','June','July','August',
 const months={};
 let activeKey=null, activeType='water', charts={};
 
-// ═══════════════ LOCAL DB CONFIG ═══════════════
-// Supabase removed: offline IndexedDB-only mode
+// ═══════════════ SUPABASE CONFIG ═══════════════
+// Credentials are stored in IndexedDB via the Admin panel — never hardcoded
+let SB_URL = '';
+let SB_KEY = '';
+
+// ── Core Supabase fetch helper ──
+async function sbFetch(table, method='GET', body=null, params=''){
+  const url=`${SB_URL}/rest/v1/${table}${params}`;
+  const headers={
+    'apikey': SB_KEY,
+    'Authorization': `Bearer ${SB_KEY}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if(method==='POST'||method==='PUT'||method==='PATCH')
+    headers['Prefer']='resolution=merge-duplicates,return=minimal';
+
+  const opts={method, headers};
+  if(body) opts.body=JSON.stringify(body);
+  const res=await fetch(url,opts);
+  if(!res.ok){
+    const err=await res.text();
+    throw new Error(`Supabase ${method} ${table}: ${res.status} ${err}`);
+  }
+  if(res.status===204||res.headers.get('content-length')==='0') return null;
+  return res.json();
+}
+
+// ── DB status tracking ──
 let dbOnline=false;
 // Keep IndexedDB as offline fallback
 const DB_NAME='MeterReadingsDB', DB_VER=6, STORE='months';
@@ -1129,32 +1293,82 @@ function openDB(){
   });
 }
 
-// ── STATUS INDICATOR ──
-function setDBStatus(){
-  const el=document.getElementById('dbStatus');
-  if(!el)return;
-  el.textContent='● Local DB';
-  el.style.color='#7EC8E3';
-  el.title='Using local IndexedDB only';
+// ── Supabase ping ──
+async function checkSupabase(){
+  if(!SB_URL||!SB_KEY) return false;
+  try{
+    await sbFetch('app_users','GET',null,'?limit=1');
+    return true;
+  }catch(e){
+    console.warn('Supabase unreachable, falling back to IndexedDB',e.message);
+    return false;
+  }
 }
 
+// ── STATUS INDICATOR ──
+function setDBStatus(online){
+  dbOnline=online;
+  const el=document.getElementById('dbStatus');
+  if(!el)return;
+  if(!SB_URL||!SB_KEY){
+    el.textContent='● Local DB';
+    el.style.color='#F0A95A';
+    el.title='Supabase not configured — using local storage';
+  } else if(online){
+    el.textContent='● Cloud DB';
+    el.style.color='#7EC8E3';
+    el.title='Connected to Supabase';
+  } else {
+    el.textContent='● Offline (local)';
+    el.style.color='#F5AAAA';
+    el.title='Supabase unreachable — using local IndexedDB fallback';
+  }
+}
 
 // ══════════════════════════════════════════
-// MONTHS — save / delete / load (local IndexedDB only)
+// MONTHS — save / delete / load
 // ══════════════════════════════════════════
 async function dbSave(key){
-  if(!db) return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
-  catch(e){ console.error('idbSave failed',e); }
+  const record={
+    key,
+    label:months[key].label, month:months[key].month, year:months[key].year,
+    units:months[key].units, water_rate:months[key].waterRate, elec_rate:months[key].elecRate,
+    water:months[key].water, elec:months[key].elec, billing:months[key].billing
+  };
+  if(dbOnline){
+    try{ await sbFetch('months','POST',record); }
+    catch(e){ console.error('sbSave months failed',e); }
+  }
+  // Always write to local IDB fallback
+  if(db){
+    try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
+    catch(e){ console.error('idbSave failed',e); }
+  }
 }
 
 async function dbDelete(key){
-  if(!db) return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
-  catch(e){ console.error('idbDelete failed',e); }
+  if(dbOnline){
+    try{ await sbFetch('months','DELETE',null,`?key=eq.${encodeURIComponent(key)}`); }
+    catch(e){ console.error('sbDelete months failed',e); }
+  }
+  if(db){
+    try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
+    catch(e){}
+  }
 }
 
 async function dbLoadAll(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('months','GET',null,'?order=key');
+      return (rows||[]).map(r=>({
+        key:r.key, label:r.label, month:r.month, year:r.year,
+        units:r.units, waterRate:r.water_rate, elecRate:r.elec_rate,
+        water:r.water||[], elec:r.elec||[], billing:r.billing||{}
+      }));
+    }catch(e){ console.error('sbLoadAll failed, using IDB',e); }
+  }
+  // Fallback to IDB
   return new Promise(res=>{
     if(!db){res([]);return;}
     const req=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
@@ -1169,12 +1383,42 @@ async function dbLoadAll(){
 const PROP_STORE='propSettings';
 
 async function savePropToDB(){
-  if(!db) return;
-  try{ db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings}); }
-  catch(e){ console.error('idbSaveProp failed',e); }
+  const record={
+    id:1,
+    complex:propSettings.complex||'', addr1:propSettings.addr1||'',
+    addr2:propSettings.addr2||'', contact:propSettings.contact||'',
+    email:propSettings.email||'', phone:propSettings.phone||'',
+    bank:propSettings.bank||'', acc_no:propSettings.accNo||'',
+    branch:propSettings.branch||'', acc_type:propSettings.accType||'',
+    vat:propSettings.vat||''
+  };
+  if(dbOnline){
+    try{ await sbFetch('prop_settings','POST',record); }
+    catch(e){ console.error('sbSave prop_settings failed',e); }
+  }
+  if(db){
+    try{ db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings}); }
+    catch(e){}
+  }
 }
 
 async function loadPropFromDB(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('prop_settings','GET',null,'?id=eq.1');
+      if(rows&&rows.length){
+        const r=rows[0];
+        Object.assign(propSettings,{
+          complex:r.complex||'', addr1:r.addr1||'', addr2:r.addr2||'',
+          contact:r.contact||'', email:r.email||'', phone:r.phone||'',
+          bank:r.bank||'', accNo:r.acc_no||'', branch:r.branch||'',
+          accType:r.acc_type||'', vat:r.vat||''
+        });
+        return;
+      }
+    }catch(e){ console.error('sbLoad prop_settings failed, using IDB',e); }
+  }
+  // IDB fallback
   return new Promise(res=>{
     if(!db){res();return;}
     const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
@@ -1192,18 +1436,41 @@ async function loadPropFromDB(){
 const USER_STORE='users';
 
 async function dbSaveUser(u){
-  if(!db) return;
-  try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u); }
-  catch(e){ console.error('idbSaveUser failed',e); }
+  if(dbOnline){
+    try{
+      await sbFetch('app_users','POST',{
+        username:u.username, name:u.name, role:u.role,
+        hash:u.hash, last_login:u.lastLogin||null
+      });
+    }catch(e){ console.error('sbSaveUser failed',e); }
+  }
+  if(db){
+    try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u); }
+    catch(e){}
+  }
 }
 
 async function dbDeleteUser(username){
-  if(!db) return;
-  try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username); }
-  catch(e){ console.error('idbDeleteUser failed',e); }
+  if(dbOnline){
+    try{ await sbFetch('app_users','DELETE',null,`?username=eq.${encodeURIComponent(username)}`); }
+    catch(e){ console.error('sbDeleteUser failed',e); }
+  }
+  if(db){
+    try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username); }
+    catch(e){}
+  }
 }
 
 async function dbGetAllUsers(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('app_users','GET',null,'?order=username');
+      return (rows||[]).map(r=>({
+        username:r.username, name:r.name, role:r.role,
+        hash:r.hash, lastLogin:r.last_login
+      }));
+    }catch(e){ console.error('sbGetAllUsers failed, using IDB',e); }
+  }
   return new Promise(res=>{
     if(!db){res([]);return;}
     const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
@@ -1218,19 +1485,50 @@ async function dbGetAllUsers(){
 const UNITS_STORE='unitOwners';
 
 async function dbSaveUnit(u){
-  if(!db) return;
   const unitNum=parseInt(u.unit);
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put({...u,unit:unitNum}); }
-  catch(e){ console.error('idbSaveUnit failed',e); }
+  if(dbOnline){
+    try{
+      await sbFetch('unit_owners','POST',{
+        unit:unitNum,
+        first:u.first||'', last:u.last||'', email:u.email||'', phone:u.phone||'',
+        first2:u.first2||'', last2:u.last2||'', email2:u.email2||'', phone2:u.phone2||'',
+        notes:u.notes||''
+      });
+    }catch(e){ console.error('sbSaveUnit failed',e); }
+  }
+  if(db){
+    try{
+      const record={...u,unit:unitNum};
+      db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(record);
+    }catch(e){ console.error('idbSaveUnit failed',e); }
+  }
 }
 
 async function dbDeleteUnit(unitNum){
-  if(!db) return;
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(unitNum)); }
-  catch(e){ console.error('idbDeleteUnit failed',e); }
+  const n=parseInt(unitNum);
+  if(dbOnline){
+    try{ await sbFetch('unit_owners','DELETE',null,`?unit=eq.${n}`); }
+    catch(e){ console.error('sbDeleteUnit failed',e); }
+  }
+  if(db){
+    try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(n); }
+    catch(e){}
+  }
 }
 
 async function dbLoadAllUnits(){
+  if(dbOnline){
+    try{
+      const rows=await sbFetch('unit_owners','GET',null,'?order=unit');
+      return (rows||[]).map(r=>({
+        unit:parseInt(r.unit),
+        first:r.first||'', last:r.last||'', email:r.email||'', phone:r.phone||'',
+        first2:r.first2||'', last2:r.last2||'', email2:r.email2||'', phone2:r.phone2||'',
+        notes:r.notes||''
+      }));
+    }catch(e){ console.error('sbLoadAllUnits failed, using IDB',e); }
+  }
+  return new Promise(res=>{
     if(!db){res([]);return;}
     const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
     req.onsuccess=e=>res(e.target.result||[]);
@@ -1244,6 +1542,214 @@ async function loadUnitsFromDB(){
     const normalised={...u,unit:parseInt(u.unit)};
     units[String(normalised.unit)]=normalised;
   });
+}
+
+// ═══════════════ AUTH & USER MANAGEMENT ═══════════════
+
+async function hashPwd(pwd){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
+  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+  lastLogin:null};
+
+// Always writes directly to IDB — never fails silently
+async function seedDefaultAdmin(){
+  return new Promise(res=>{
+    if(!db){res();return;}
+    try{
+      const store=db.transaction('users','readwrite').objectStore('users');
+      const check=store.get('admin');
+      check.onsuccess=e=>{
+        if(!e.target.result){
+          db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN);
+        }
+        res();
+      };
+      check.onerror=()=>res();
+    }catch(e){res();}
+  });
+}
+
+// Always read from local IDB — used by login for reliability
+function getUserFromIDB(username){
+  return new Promise(res=>{
+    if(!db){res(null);return;}
+    try{
+      const req=db.transaction('users','readonly').objectStore('users').get(username);
+      req.onsuccess=e=>res(e.target.result||null);
+      req.onerror=()=>res(null);
+    }catch(e){res(null);}
+  });
+}
+
+function saveSession(user){
+  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
+  catch(e){ console.warn('Session storage unavailable',e); }
+}
+function loadSession(){
+  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
+}
+function clearSession(){
+  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
+}
+
+let currentUser=null;
+
+const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
+const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
+
+function showUserMenu(){
+  if(!confirm('Signed in as '+currentUser.name+' ('+( ROLE_LABELS[currentUser.role]||currentUser.role)+')\n\nClick OK to sign out.'))return;
+  doLogout();
+}
+
+async function addUser(){
+  const u=document.getElementById('umNewUser').value.trim().toLowerCase();
+  const n=document.getElementById('umNewName').value.trim();
+  const p=document.getElementById('umNewPass').value;
+  const r=document.getElementById('umNewRole').value;
+  if(!u||!n||!p){showToast('Fill in all fields','#C55A11');return;}
+  const hash=await hashPwd(p);
+  await dbSaveUser({username:u,name:n,role:r,hash,lastLogin:null});
+  document.getElementById('umNewUser').value='';
+  document.getElementById('umNewName').value='';
+  document.getElementById('umNewPass').value='';
+  setTimeout(renderUMTable,200);
+  showToast('User '+u+' added');
+}
+
+async function resetUserPwd(username){
+  const newPwd=prompt('New password for '+username+':');
+  if(!newPwd)return;
+  const user=await getUserFromIDB(username);
+  if(!user){showToast('User not found','#C55A11');return;}
+  user.hash=await hashPwd(newPwd);
+  await dbSaveUser(user);
+  showToast('Password reset for '+username);
+}
+
+async function removeUser(username){
+  if(username==='admin'){showToast('Cannot remove admin','#C55A11');return;}
+  if(!confirm('Remove user: '+username+'?'))return;
+  await dbDeleteUser(username);
+  setTimeout(renderUMTable,200);
+  showToast('User '+username+' removed','#C55A11');
+}
+
+async function renderUMTable(){
+  const tbody=document.getElementById('umBody');
+  if(!tbody)return;
+  const users=await dbGetAllUsers();
+  tbody.innerHTML=users.length?users.map(u=>`<tr>
+    <td style="font-family:var(--mono)">${u.username}</td>
+    <td>${u.name}</td>
+    <td><span class="role-pill ${ROLE_COLORS[u.role]||''}">${ROLE_LABELS[u.role]||u.role}</span></td>
+    <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleString('en-ZA',{dateStyle:'short',timeStyle:'short'}):'Never'}</td>
+    <td style="display:flex;gap:.4rem">
+      <button onclick="resetUserPwd('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Reset Pwd</button>
+      ${u.username!=='admin'?`<button onclick="removeUser('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-weight:600">Remove</button>`:''}
+    </td>
+  </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">No users</td></tr>';
+}
+
+async function doLogin(){
+  const username=document.getElementById('authUser').value.trim().toLowerCase();
+  const password=document.getElementById('authPass').value;
+  const errEl=document.getElementById('authError');
+  errEl.style.display='none';
+  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
+
+  // Always check local IDB first for reliability
+  let user=await getUserFromIDB(username);
+
+  // If not in IDB, try Supabase
+  if(!user&&dbOnline){
+    try{
+      const rows=await sbFetch('app_users','GET',null,'?username=eq.'+encodeURIComponent(username));
+      if(rows&&rows.length){
+        user={username:rows[0].username,name:rows[0].name,role:rows[0].role,
+          hash:rows[0].hash,lastLogin:rows[0].last_login};
+        if(db) db.transaction('users','readwrite').objectStore('users').put(user);
+      }
+    }catch(e){ console.warn('Supabase user lookup failed',e); }
+  }
+
+  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+
+  const hash=await hashPwd(password);
+  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+
+  user.lastLogin=new Date().toISOString();
+  dbSaveUser(user);
+  currentUser={username:user.username,name:user.name,role:user.role};
+  saveSession(currentUser);
+  applyAuth();
+}
+
+function doLogout(){
+  clearSession();
+  currentUser=null;
+  document.getElementById('authOverlay').style.display='flex';
+  document.getElementById('authUser').value='';
+  document.getElementById('authPass').value='';
+  document.getElementById('authError').style.display='none';
+  document.getElementById('userChip').style.display='none';
+  document.querySelector('header').style.opacity='0.3';
+  document.querySelector('header').style.pointerEvents='none';
+  document.querySelector('.shell').style.display='none';
+}
+
+function applyAuth(){
+  if(!currentUser)return;
+  document.getElementById('authOverlay').style.display='none';
+  document.querySelector('header').style.opacity='';
+  document.querySelector('header').style.pointerEvents='';
+  document.querySelector('.shell').style.display='';
+  const chip=document.getElementById('userChip');
+  chip.style.display='flex';
+  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
+  document.getElementById('userChipName').textContent=currentUser.name;
+  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
+  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
+    const roles=btn.getAttribute('data-roles')||'';
+    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
+  });
+  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
+  if(first) first.click();
+  if(currentUser.role==='readonly'){
+    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
+  }
+  renderUMTable();
+  if(typeof showMobileNav==='function') showMobileNav();
+  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
+}
+
+// EMERGENCY: Create test user in database
+async function emergencyCreateTestUser(){
+  const testUser={username:'test',name:'Test User',role:'entry',hash:'9f86d081884c7d6d9ffd60014fc7ee77e1f75f6e2d3a71e9ad8b8e1c5a2f3c4d',lastLogin:null};
+  if(!db){console.error('Database not ready');return;}
+  try{
+    const tx=db.transaction('users','readwrite');
+    const store=tx.objectStore('users');
+    const req=store.put(testUser);
+    req.onsuccess=()=>{console.log('✓ Test user created: test / test');document.getElementById('authUser').value='test';document.getElementById('authPass').value='test';};
+    req.onerror=()=>console.error('Failed',req.error);
+  }catch(e){console.error('Error:',e);}
+}
+
+// EMERGENCY: Create admin user in database  
+async function emergencyCreateAdminUser(){
+  if(!db){console.error('Database not ready');return;}
+  try{
+    const tx=db.transaction('users','readwrite');
+    const store=tx.objectStore('users');
+    const req=store.put(DEFAULT_ADMIN);
+    req.onsuccess=()=>{console.log('✓ Admin user created: admin / admin');document.getElementById('authUser').value='admin';document.getElementById('authPass').value='admin';};
+    req.onerror=()=>console.error('Failed',req.error);
+  }catch(e){console.error('Error:',e);}
 }
 
 // ═══════════════ INIT ═══════════════
@@ -1262,12 +1768,15 @@ async function init(){
   }
   document.getElementById('selMonth').value=String(now.getMonth()+1).padStart(2,'0');
   try{
-    // Try IndexedDB for local storage
+    // Try IndexedDB for offline fallback first
     try{ await openDB(); }catch(e){ console.warn('IDB unavailable',e); }
 
-    setDBStatus(false);
+    // Check Supabase availability
+    const online = await checkSupabase();
+    setDBStatus(online);
 
     // Always seed default admin to LOCAL IDB first (guarantees login works offline)
+    // This runs every version upgrade — safe because it only inserts if missing
     await seedDefaultAdmin();
 
     await loadPropFromDB();
@@ -1316,7 +1825,7 @@ function showPage(id,btn){
   if(id==='billing'){switchBillingTab('billing');}
   if(id==='dashboard')renderDashboard();
   if(id==='compare'){showPage('billing',document.querySelector('[onclick*="billing"]'));return;}
-  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
+  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();renderCloudDisplay();updatePropertyBanner();}
   if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
   if(id==='units')renderUnitsTable();
 }
@@ -2487,6 +2996,7 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
 // ═══════════════ ADMIN ═══════════════
 function renderAdminStatus(){
   renderPropDisplayGrid();
+  renderCloudDisplay();
   setTimeout(renderUMTable, 50);
   const keys=Object.keys(months).sort();
   const body=document.getElementById('adminStatusBody');
@@ -2634,7 +3144,12 @@ async function wipeAllData(){
   if(!confirm('⚠️ Permanently delete ALL data from the local database?\n\nThis includes all months, readings, billing, units, property settings and users.\n\nThis cannot be undone. Export a backup first!'))return;
   if(!confirm('Last chance — wipe EVERYTHING including users?'))return;
 
-  // Wipe months (local IndexedDB only)
+  // Wipe months
+  if(dbOnline){
+    try{ await sbFetch('months','DELETE',null,'?key=neq.___none___'); }catch(e){}
+    try{ await sbFetch('unit_owners','DELETE',null,'?unit=gt.0'); }catch(e){}
+    try{ await sbFetch('prop_settings','DELETE',null,'?id=eq.1'); }catch(e){}
+  }
   Object.keys(months).forEach(k=>{
     if(db) try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(k); }catch(e){}
     delete months[k];
@@ -2652,6 +3167,11 @@ async function wipeAllData(){
   await savePropToDB();
 
   // Wipe users and re-seed default admin
+  if(dbOnline){
+    try{
+      await sbFetch('app_users','DELETE',null,'?username=neq.___none___');
+    }catch(e){ console.error('wipe users failed',e); }
+  }
   if(db){
     try{ db.transaction('users','readwrite').objectStore('users').clear(); }catch(e){}
   }
@@ -2725,192 +3245,6 @@ function showToast(msg,color='var(--green)'){
   const t=document.getElementById('toast');t.textContent=msg;t.style.background=color;
   t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);
 }
-
-// ═══════════════════════════════════════════════════════════
-// AUTH SYSTEM
-// ═══════════════════════════════════════════════════════════
-async function hashPwd(pwd){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
-  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
-  lastLogin:null};
-
-// Always writes directly to IDB — never fails silently
-async function seedDefaultAdmin(){
-  return new Promise(res=>{
-    if(!db){res();return;}
-    try{
-      const store=db.transaction('users','readwrite').objectStore('users');
-      const check=store.get('admin');
-      check.onsuccess=e=>{
-        if(!e.target.result){
-          db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN);
-        }
-        res();
-      };
-      check.onerror=()=>res();
-    }catch(e){res();}
-  });
-}
-
-// Always read from local IDB — used by login for reliability
-function getUserFromIDB(username){
-  return new Promise(res=>{
-    if(!db){res(null);return;}
-    try{
-      const req=db.transaction('users','readonly').objectStore('users').get(username);
-      req.onsuccess=e=>res(e.target.result||null);
-      req.onerror=()=>res(null);
-    }catch(e){res(null);}
-  });
-}
-
-function saveSession(user){
-  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
-  catch(e){ console.warn('Session storage unavailable',e); }
-}
-function loadSession(){
-  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
-}
-function clearSession(){
-  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
-}
-
-let currentUser=null;
-
-async function doLogin(){
-  const username=document.getElementById('authUser').value.trim().toLowerCase();
-  const password=document.getElementById('authPass').value;
-  const errEl=document.getElementById('authError');
-  errEl.style.display='none';
-  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
-
-  // Always check local IDB only for reliability
-  const user=await getUserFromIDB(username);
-
-  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  const hash=await hashPwd(password);
-  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  user.lastLogin=new Date().toISOString();
-  dbSaveUser(user);
-  currentUser={username:user.username,name:user.name,role:user.role};
-  saveSession(currentUser);
-  applyAuth();
-}
-
-function doLogout(){
-  clearSession();
-  currentUser=null;
-  document.getElementById('authOverlay').style.display='flex';
-  document.getElementById('authUser').value='';
-  document.getElementById('authPass').value='';
-  document.getElementById('authError').style.display='none';
-  document.getElementById('userChip').style.display='none';
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
-  document.querySelector('.shell').style.display='none';
-}
-
-function applyAuth(){
-  if(!currentUser)return;
-  document.getElementById('authOverlay').style.display='none';
-  document.querySelector('header').style.opacity='';
-  document.querySelector('header').style.pointerEvents='';
-  document.querySelector('.shell').style.display='';
-  const chip=document.getElementById('userChip');
-  chip.style.display='flex';
-  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
-  document.getElementById('userChipName').textContent=currentUser.name;
-  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
-  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
-    const roles=btn.getAttribute('data-roles')||'';
-    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
-  });
-  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
-  if(first) first.click();
-  if(currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
-  renderUMTable();
-  if(typeof showMobileNav==='function') showMobileNav();
-  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
-}
-
-const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
-const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
-
-function showUserMenu(){
-  if(!confirm('Signed in as '+currentUser.name+' ('+( ROLE_LABELS[currentUser.role]||currentUser.role)+')\n\nClick OK to sign out.'))return;
-  doLogout();
-}
-
-async function addUser(){
-  const u=document.getElementById('umNewUser').value.trim().toLowerCase();
-  const n=document.getElementById('umNewName').value.trim();
-  const p=document.getElementById('umNewPass').value;
-  const r=document.getElementById('umNewRole').value;
-  if(!u||!n||!p){showToast('Fill in all fields','#C55A11');return;}
-  const hash=await hashPwd(p);
-  await dbSaveUser({username:u,name:n,role:r,hash,lastLogin:null});
-  document.getElementById('umNewUser').value='';
-  document.getElementById('umNewName').value='';
-  document.getElementById('umNewPass').value='';
-  setTimeout(renderUMTable,200);
-  showToast('User '+u+' added');
-}
-
-async function resetUserPwd(username){
-  const newPwd=prompt('New password for '+username+':');
-  if(!newPwd)return;
-  const user=await getUserFromIDB(username);
-  if(!user){showToast('User not found','#C55A11');return;}
-  user.hash=await hashPwd(newPwd);
-  await dbSaveUser(user);
-  showToast('Password reset for '+username);
-}
-
-async function removeUser(username){
-  if(username==='admin'){showToast('Cannot remove admin','#C55A11');return;}
-  if(!confirm('Remove user: '+username+'?'))return;
-  await dbDeleteUser(username);
-  setTimeout(renderUMTable,200);
-  showToast('User '+username+' removed','#C55A11');
-}
-
-async function renderUMTable(){
-  const tbody=document.getElementById('umBody');
-  if(!tbody)return;
-  const users=await dbGetAllUsers();
-  tbody.innerHTML=users.length?users.map(u=>`<tr>
-    <td style="font-family:var(--mono)">${u.username}</td>
-    <td>${u.name}</td>
-    <td><span class="role-pill ${ROLE_COLORS[u.role]||''}">${ROLE_LABELS[u.role]||u.role}</span></td>
-    <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleString('en-ZA',{dateStyle:'short',timeStyle:'short'}):'Never'}</td>
-    <td style="display:flex;gap:.4rem">
-      <button onclick="resetUserPwd('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Reset Pwd</button>
-      ${u.username!=='admin'?`<button onclick="removeUser('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-weight:600">Remove</button>`:''}
-    </td>
-  </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">No users</td></tr>';
-}
-
-// Supabase config removed. No cloud settings are stored in this build.
-
-
-async function emergencyReset(){
-  if(!confirm('Reset admin password back to "admin"?\n\nAll other accounts will be kept.\n\nContinue?'))return;
-  await seedDefaultAdmin();
-  if(db){ try{ db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN); }catch(e){} }
-  document.getElementById('authUser').value='admin';
-  document.getElementById('authPass').value='admin';
-  document.getElementById('authError').style.display='none';
-  showToast('Admin reset — password is now: admin');
-}
-
 </script>
 
 <!-- AUTH OVERLAY -->
