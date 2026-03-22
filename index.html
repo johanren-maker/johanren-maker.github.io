@@ -851,10 +851,10 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     </div>
   </div>
   <div class="header-nav" id="mainNav">
-    <button class="nav-btn active" data-page="data-entry" data-roles="admin,meter-reader,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
+    <button class="nav-btn active" data-page="dashboard" data-roles="admin,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button class="nav-btn" data-page="data-entry" data-roles="admin,meter-reader,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
     <button class="nav-btn" data-page="units" data-roles="admin,readonly" onclick="showPage('units',this)">Units</button>
     <button class="nav-btn" data-page="billing" data-roles="admin,readonly" onclick="showPage('billing',this)">Billing</button>
-    <button class="nav-btn" data-page="dashboard" data-roles="admin,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-btn" data-page="invoices" data-roles="admin" onclick="showPage('invoices',this)">Invoices</button>
     <button class="nav-btn" data-page="admin" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
   </div>
@@ -1192,7 +1192,10 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
 
 <!-- MOBILE BOTTOM NAV -->
 <nav id="mobileNavBar" role="navigation" aria-label="Mobile navigation">
-  <button class="mob-nav-btn active" data-page="data-entry" onclick="mobNav('data-entry',this)">
+  <button class="mob-nav-btn active" data-page="dashboard" onclick="mobNav('dashboard',this)" data-roles="admin,entry,billing,readonly">
+    <span class="mn-icon">📊</span>Dash
+  </button>
+  <button class="mob-nav-btn" data-page="data-entry" onclick="mobNav('data-entry',this)">
     <span class="mn-icon">📋</span>Readings
   </button>
   <button class="mob-nav-btn" data-page="units" onclick="mobNav('units',this)" data-roles="admin,entry,billing,readonly">
@@ -1200,9 +1203,6 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
   </button>
   <button class="mob-nav-btn" data-page="billing" onclick="mobNav('billing',this)" data-roles="admin,entry,billing,readonly">
     <span class="mn-icon">🏛</span>Billing
-  </button>
-  <button class="mob-nav-btn" data-page="dashboard" onclick="mobNav('dashboard',this)" data-roles="admin,entry,billing,readonly">
-    <span class="mn-icon">📊</span>Dash
   </button>
   <button class="mob-nav-btn" data-page="invoices" onclick="mobNav('invoices',this)" data-roles="admin,billing">
     <span class="mn-icon">🧾</span>Invoices
@@ -2613,7 +2613,6 @@ function buildInvoiceHTML(key,unitNum){
       <div class="chips">
         <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(0)} kl</div></div>
         <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
-        <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
       <table>
         <thead><tr>
