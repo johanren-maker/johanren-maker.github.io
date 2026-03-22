@@ -1518,6 +1518,116 @@ async function dbDeleteUnit(unitNum){
 
 async function dbLoadAllUnits(){
   if(dbOnline){
+
+// ══════════════════════════════════════════
+// AUTH & USER FUNCTIONS (MISSING - ADDED FIX)
+// ══════════════════════════════════════════
+let currentUser = null;
+const USER_STORE = 'users';
+const UNITS_STORE = 'unitOwners';
+
+const DEFAULT_ADMIN = {
+  username: 'admin',
+  password: 'admin',
+  role: 'admin',
+  first: 'System',
+  last: 'Administrator',
+  email: 'admin@local'
+};
+
+async function seedDefaultAdmin() {
+  if (!db) return;
+  return new Promise((resolve, reject) => {
+    try {
+      const req = db.transaction(USER_STORE, 'readonly').objectStore(USER_STORE).get('admin');
+      req.onsuccess = () => {
+        if (!req.result) {
+          const writeReq = db.transaction(USER_STORE, 'readwrite').objectStore(USER_STORE).put(DEFAULT_ADMIN);
+          writeReq.onsuccess = () => resolve();
+          writeReq.onerror = () => reject(writeReq.error);
+        } else resolve();
+      };
+      req.onerror = () => reject(req.error);
+    } catch (e) { reject(e); }
+  });
+}
+
+function loadSession() {
+  const stored = sessionStorage.getItem('currentSession');
+  return stored ? JSON.parse(stored) : null;
+}
+
+function saveSession(user) {
+  sessionStorage.setItem('currentSession', JSON.stringify(user));
+}
+
+async function doLogin() {
+  const userInput = document.getElementById('authUser').value.trim();
+  const passInput = document.getElementById('authPass').value;
+  const errorDiv = document.getElementById('authError');
+  if (!userInput || !passInput) { errorDiv.textContent = 'Enter username and password'; errorDiv.style.display = 'block'; return; }
+  let foundUser = null;
+  if (db) {
+    foundUser = await new Promise((res) => {
+      const req = db.transaction(USER_STORE, 'readonly').objectStore(USER_STORE).get(userInput);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror = () => res(null);
+    });
+  }
+  if (!foundUser && dbOnline && SB_URL && SB_KEY) {
+    try { const results = await sbFetch('app_users', 'GET', null, `?username=eq.${encodeURIComponent(userInput)}`); if (results && results.length > 0) foundUser = results[0]; } catch (e) { console.warn('Supabase lookup failed', e); }
+  }
+  if (!foundUser || foundUser.password !== passInput) { errorDiv.textContent = 'Incorrect username or password'; errorDiv.style.display = 'block'; return; }
+  currentUser = foundUser;
+  saveSession(foundUser);
+  errorDiv.style.display = 'none';
+  applyAuth();
+}
+
+function applyAuth() {
+  if (!currentUser) return;
+  const authOverlay = document.getElementById('authOverlay');
+  if (authOverlay) authOverlay.style.display = 'none';
+  const shell = document.querySelector('.shell');
+  if (shell) shell.style.display = '';
+  const header = document.querySelector('header');
+  if (header) { header.style.opacity = '1'; header.style.pointerEvents = 'auto'; }
+  const userDisplay = document.getElementById('userDisplay');
+  if (userDisplay) userDisplay.textContent = (currentUser.first || currentUser.username) + ' (' + currentUser.role + ')';
+  applyRolePermissions();
+  applyMobileNavRoles();
+}
+
+function applyRolePermissions() {
+  if (!currentUser) return;
+  const allowed = { admin: ['data-entry', 'units', 'billing', 'dashboard', 'invoices', 'admin'], entry: ['data-entry', 'units', 'billing', 'dashboard'], billing: ['data-entry', 'units', 'billing', 'dashboard', 'invoices'], readonly: ['data-entry', 'units', 'billing', 'dashboard'] }[currentUser.role] || [];
+  document.querySelectorAll('[data-roles]').forEach(el => { const roles = (el.getAttribute('data-roles') || '').split(',').map(r => r.trim()); if (roles.length && !roles.includes(currentUser.role)) el.style.display = 'none'; });
+}
+
+function doLogout() {
+  if (!confirm('Sign out?')) return;
+  currentUser = null;
+  sessionStorage.removeItem('currentSession');
+  const authOverlay = document.getElementById('authOverlay');
+  if (authOverlay) authOverlay.style.display = 'flex';
+  const shell = document.querySelector('.shell');
+  if (shell) shell.style.display = 'none';
+  const header = document.querySelector('header');
+  if (header) { header.style.opacity = '0.3'; header.style.pointerEvents = 'none'; }
+  document.getElementById('authUser').value = '';
+  document.getElementById('authPass').value = '';
+}
+
+async function dbSaveUser(user) {
+  if (dbOnline && SB_URL && SB_KEY) { try { await sbFetch('app_users', 'POST', { username: user.username, password: user.password, role: user.role, first: user.first, last: user.last, email: user.email }); } catch (e) { console.error('Failed to save user', e); } }
+  if (db) { return new Promise((res, rej) => { const req = db.transaction(USER_STORE, 'readwrite').objectStore(USER_STORE).put(user); req.onsuccess = () => res(); req.onerror = () => rej(req.error); }); }
+}
+
+async function dbDeleteUser(username) {
+  if (dbOnline && SB_URL && SB_KEY) { try { await sbFetch('app_users', 'DELETE', null, `?username=eq.${encodeURIComponent(username)}`); } catch (e) { console.error('Failed to delete user', e); } }
+  if (db) { return new Promise((res, rej) => { const req = db.transaction(USER_STORE, 'readwrite').objectStore(USER_STORE).delete(username); req.onsuccess = () => res(); req.onerror = () => rej(req.error); }); }
+}
+
     try{
       const rows=await sbFetch('unit_owners','GET',null,'?order=unit');
       return (rows||[]).map(r=>({
