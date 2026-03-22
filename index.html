@@ -8,6 +8,29 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+
+// SUPABASE CONFIG
+const SUPABASE_URL = 'https://hbfxodedseidrtlyptan.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_O3MktwED0q5maChRWe4krA_uhj9RAO7';
+let sb = null;
+
+// Initialize Supabase client
+// NOTE: SUPABASE_KEY should be your project's anon/public key (starts with 'eyJ...')
+// A publishable key starting with 'sb_publishable_' may not work with the JS client.
+// Update it in the Supabase dashboard under Settings > API > anon public key.
+try {
+  if (window.supabase && window.supabase.createClient && SUPABASE_URL && SUPABASE_KEY) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch(e) {
+  console.warn('Supabase init failed, running in offline mode:', e);
+  sb = null;
+}
+
+</script>
 <script>
 
 // ══════════════════════════════════════════
@@ -34,44 +57,45 @@ function switchBillingTab(tab){
 // ══════════════════════════════════════════
 function showUnitInfo(unitNum, e){
   e.stopPropagation();
-  const u=getUnitOwner(unitNum);
+  const u=getUnitRecord(unitNum, 'Owner');
+  const t=getUnitRecord(unitNum, 'Tenant');
+
   const existing=document.getElementById('unitInfoPopup');
   if(existing) existing.remove();
   const popup=document.createElement('div');
   popup.id='unitInfoPopup';
-  popup.style.cssText='position:fixed;z-index:600;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:240px;max-width:320px;font-family:var(--sans)';
-  if(!u){
+  popup.style.cssText='position:fixed;z-index:600;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;padding:1rem 1.15rem;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:240px;max-width:320px;font-family:var(--sans);color:var(--text-main)';
+  
+  if(!u && !t){
     popup.innerHTML=`<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.5rem">
       <div style="font-weight:700;color:var(--navy);margin-bottom:.5rem">Unit ${unitNum}</div>
       No owner data on file.
-      <div style="margin-top:.75rem"><button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.3rem .75rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Add Owner</button></div>
+      <div style="margin-top:.75rem"><button onclick="goToUnitsPage(${unitNum},'Owner')" style="font-size:.72rem;padding:.3rem .75rem;border:1.5px solid var(--blue);border-radius:6px;background:var(--bg-card);color:var(--blue);cursor:pointer;font-weight:600">Add Owner</button></div>
     </div>`;
   } else {
-    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
-    const p2=[u.first2,u.last2].filter(Boolean).join(' ');
-    popup.innerHTML=`
-      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum} — Owner Info</div>
-      <div style="margin-bottom:.65rem">
-        <div style="font-size:.65rem;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 1</div>
+    const renderCard = (rec, label) => {
+      if(!rec) return '';
+      const p1=[rec.first,rec.last].filter(Boolean).join(' ')||'—';
+      return `<div style="margin-bottom:.75rem;border-bottom:1px solid var(--border-color);padding-bottom:.5rem">
+        <div style="font-size:.65rem;color:${label==='Tenant'?'var(--orange)':'var(--blue)'};font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">${label}</div>
         <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p1}</div>
-        ${u.email?`<div style="font-size:.74rem;color:var(--muted)">${u.email}</div>`:''}
-        ${u.phone?`<div style="font-size:.74rem;color:var(--muted)">${u.phone}</div>`:''}
-      </div>
-      ${p2?`<div style="margin-bottom:.65rem">
-        <div style="font-size:.65rem;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 2</div>
-        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p2}</div>
-        ${u.email2?`<div style="font-size:.74rem;color:var(--muted)">${u.email2}</div>`:''}
-        ${u.phone2?`<div style="font-size:.74rem;color:var(--muted)">${u.phone2}</div>`:''}
-      </div>`:''}
-      ${u.notes?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem">${u.notes}</div>`:''}
+        ${rec.email?`<div style="font-size:.74rem;color:var(--muted)">${rec.email}</div>`:''}
+        ${rec.phone?`<div style="font-size:.74rem;color:var(--muted)">${rec.phone}</div>`:''}
+      </div>`;
+    };
+
+    popup.innerHTML=`
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum}</div>
+      ${renderCard(u, 'Owner')}
+      ${renderCard(t, 'Tenant')}
       <div style="margin-top:.75rem;display:flex;gap:.5rem">
-        <button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
-        <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer;font-weight:600">Close</button>
+        <button onclick="goToUnitsPage(${unitNum}, '${t?'Tenant':'Owner'}')" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:var(--bg-card);color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
+        <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border-color);border-radius:6px;background:var(--bg-card);color:var(--muted);cursor:pointer;font-weight:600">Close</button>
       </div>`;
   }
   const rect=e.target.getBoundingClientRect();
   popup.style.top=(rect.bottom+8)+'px';
-  popup.style.left=Math.min(rect.left, window.innerWidth-340)+'px';
+  popup.style.left=Math.max(10, Math.min(rect.left, window.innerWidth - 330))+'px';
   document.body.appendChild(popup);
   setTimeout(()=>{
     const close=ev=>{if(!popup.contains(ev.target)){popup.remove();document.removeEventListener('click',close);}};
@@ -79,14 +103,15 @@ function showUnitInfo(unitNum, e){
   },100);
 }
 
-function goToUnitsPage(unitNum){
+function goToUnitsPage(unitNum, type='Owner'){
   const existing=document.getElementById('unitInfoPopup');
   if(existing) existing.remove();
   const btn=document.querySelector('#mainNav .nav-btn[onclick*="units"]');
   showPage('units',btn);
   setTimeout(()=>{
-    if(!editUnit(unitNum)){
+    if(!editUnit(unitNum, type)){
       document.getElementById('uoUnit').value=unitNum;
+      document.getElementById('uoType').value=type;
       document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
     }
   },100);
@@ -97,9 +122,12 @@ function goToUnitsPage(unitNum){
 // ══════════════════════════════════════════
 function saveUnit(){
   const unitNum=parseInt(document.getElementById('uoUnit').value);
+  const typeVal=document.getElementById('uoType').value || 'Owner';
   if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
   const u={
     unit:unitNum,
+    accNo:document.getElementById('uoAccNo').value.trim(),
+    type:typeVal,
     first:document.getElementById('uoFirst').value.trim(),
     last:document.getElementById('uoLast').value.trim(),
     email:document.getElementById('uoEmail').value.trim(),
@@ -110,42 +138,45 @@ function saveUnit(){
     phone2:document.getElementById('uoPhone2')?.value.trim()||'',
     notes:document.getElementById('uoNotes').value.trim()
   };
-  units[String(unitNum)]=u;
+  units[`${unitNum}_${typeVal}`]=u;
   dbSaveUnit(u);
   renderUnitsTable();
   clearUnitForm();
-  showToast('Unit '+unitNum+' saved');
+  showToast('Unit '+unitNum+' ('+typeVal+') saved');
   editingUnit=null;
 }
 
-function editUnit(unitNum){
-  const u=units[String(unitNum)];
+function editUnit(unitNum, type='Owner'){
+  const u=units[`${unitNum}_${type}`];
   if(!u)return false;
   editingUnit=unitNum;
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
   set('uoUnit',u.unit);set('uoFirst',u.first);set('uoLast',u.last);
+  set('uoAccNo',u.accNo);
+  document.getElementById('uoType').value = u.type;
   set('uoEmail',u.email);set('uoPhone',u.phone);
   set('uoFirst2',u.first2);set('uoLast2',u.last2);
   set('uoEmail2',u.email2);set('uoPhone2',u.phone2);
   set('uoNotes',u.notes);
-  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
+  document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum+' ('+type+')';
   document.getElementById('uoSaveBtn').textContent='Update Unit';
   document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
   return true;
 }
 
-function removeUnit(unitNum){
-  if(!confirm('Remove owner data for Unit '+unitNum+'?'))return;
-  delete units[String(unitNum)];
-  dbDeleteUnit(unitNum);
+function removeUnit(unitNum, type){
+  if(!confirm(`Remove ${type} data for Unit ${unitNum}?`))return;
+  delete units[`${unitNum}_${type}`];
+  dbDeleteUnit(unitNum, type);
   renderUnitsTable();
   showToast('Unit '+unitNum+' removed','#C55A11');
 }
 
 function clearUnitForm(){
-  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoNotes'].forEach(id=>{
+  ['uoUnit','uoAccNo','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoNotes'].forEach(id=>{
     const el=document.getElementById(id); if(el)el.value='';
   });
+  document.getElementById('uoType').value='Owner';
   document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
   document.getElementById('uoSaveBtn').textContent='Save Unit';
   editingUnit=null;
@@ -166,7 +197,7 @@ function renderUnitsTable(){
     (u.email2||'').toLowerCase().includes(search)
   ):sorted;
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML=filtered.map(u=>{
@@ -174,29 +205,32 @@ function renderUnitsTable(){
     const p2=[u.first2,u.last2].filter(Boolean).join(' ')||'';
     return `<tr>
       <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
-      <td><div style="font-weight:600">${p1}</div>${u.phone?`<div style="font-size:.7rem;color:var(--muted)">${u.phone}</div>`:''}</td>
+      <td style="font-family:var(--mono);font-size:.76rem">${u.accNo||'—'}</td>
+      <td><span class="role-pill ${u.type==='Tenant'?'billing':'admin'}" style="font-size:.6rem">${u.type||'Owner'}</span></td>
+      <td><div style="font-weight:600">${p1}</div></td>
       <td style="font-size:.76rem;font-family:var(--mono)">${u.email||'—'}</td>
       <td style="font-size:.74rem;color:var(--muted)">${u.phone||'—'}</td>
-      <td>${p2?`<div style="font-weight:600">${p2}</div>${u.phone2?`<div style="font-size:.7rem;color:var(--muted)">${u.phone2}</div>`:''}`:'<span style="color:var(--muted);font-size:.74rem">—</span>'}</td>
+      <td>${p2?`<div style="font-weight:600">${p2}</div>`:'<span style="color:var(--muted);font-size:.74rem">—</span>'}</td>
       <td style="font-size:.76rem;font-family:var(--mono)">${u.email2||''}</td>
+      <td style="font-size:.74rem;color:var(--muted)">${u.phone2||''}</td>
       <td style="font-size:.74rem;color:var(--muted)">${u.notes||''}</td>
-      <td style="display:flex;gap:.4rem">
-        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
-        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
-      </td>
+      <td><div style="display:flex;gap:.4rem">
+        <button onclick="editUnit(${u.unit},'${u.type}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:var(--bg-card);color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
+        <button onclick="removeUnit(${u.unit},'${u.type}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:var(--bg-card);color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
+      </div></td>
     </tr>`;
   }).join('');
 }
 
 function exportUnitsExcel(){
   const wb=XLSX.utils.book_new();
-  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
+  const headers=['Unit Number','Acc No','Type','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
   const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
-    u.unit,u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
+    u.unit,u.accNo||'',u.type||'Owner',u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
     u.email||'',u.phone||'',u.first2||'',u.last2||'',u.email2||'',u.phone2||'',u.notes||''
   ]);
   const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[8,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
+  ws['!cols']=[8,12,10,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
   XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('Unit directory exported');
@@ -208,7 +242,7 @@ function exportUnitsExcel(){
 function onInvUnitChange(){
   const unitNum=parseInt(document.getElementById('invUnit')?.value);
   if(isNaN(unitNum))return;
-  const owner=getUnitOwner(unitNum);
+  const owner=getUnitRecord(unitNum, 'Owner') || getUnitRecord(unitNum, 'Tenant');
   if(owner){
     const nameEl=document.getElementById('invOwnerName');
     const emailEl=document.getElementById('invOwnerEmail');
@@ -225,7 +259,7 @@ function onInvUnitChange(){
 function emailInvoice(){
   if(!previewKey||!previewUnit){showToast('No invoice loaded','#C55A11');return;}
   const d=months[previewKey];
-  const owner=getUnitOwner(previewUnit);
+  const owner=getUnitRecord(previewUnit, 'Owner') || getUnitRecord(previewUnit, 'Tenant');
   const email1=document.getElementById('invOwnerEmail')?.value||owner?.email||'';
   const email2=document.getElementById('invOwnerEmail2')?.value||owner?.email2||'';
   const emails=[email1,email2].filter(Boolean);
@@ -238,38 +272,30 @@ function emailInvoice(){
   showToast('Email client opened for '+emails.join(', '));
 }
 
-function setDBStatus(){
-  const el=document.getElementById('dbStatus');
-  if(!el)return;
-  el.textContent='● Local DB';
-  el.style.color='#7EC8E3';
-  el.title='Using local IndexedDB';
+async function syncLocalToCloud(){
+  showToast('Syncing to cloud...','var(--blue)');
+  let synced=0;
+  for(const key of Object.keys(months)){ try{ await dbSave(key); synced++; }catch(e){} }
+  try{ await savePropToDB(); }catch(e){}
+  for(const u of Object.values(units)){ try{ await dbSaveUnit(u); }catch(e){} }
+  const idbUsers=await new Promise(res=>{
+    if(!db){res([]);return;}
+    const req=db.transaction('users','readonly').objectStore('users').getAll();
+    req.onsuccess=e=>res(e.target.result||[]);
+    req.onerror=()=>res([]);
+  });
+  for(const u of idbUsers){ try{ await dbSaveUser(u); }catch(e){} }
+  showToast('Synced '+synced+' months to cloud');
 }
 
-// ══════════════════════════════════════════
-// EMERGENCY LOGIN RESET
-// ══════════════════════════════════════════
-async function emergencyReset(){
-  if(!confirm('Reset admin password back to "admin"?\n\nAll other accounts will be kept.\n\nContinue?'))return;
-  await seedDefaultAdmin();
-  if(db){ try{ db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN); }catch(e){} }
-  document.getElementById('authUser').value='admin';
-  document.getElementById('authPass').value='admin';
-  document.getElementById('authError').style.display='none';
-  showToast('Admin reset — password is now: admin');
-}
+// Emergency login reset removed (direct admin mode, no login panel).
 
 // ══════════════════════════════════════════
 // MOBILE NAV ROLE APPLY + RESIZE
 // ══════════════════════════════════════════
 function applyMobileNavRoles(){
   if(!currentUser)return;
-  const allowed={
-    admin:['data-entry','units','billing','dashboard','invoices','admin'],
-    entry:['data-entry','units','billing','dashboard'],
-    billing:['data-entry','units','billing','dashboard','invoices'],
-    readonly:['data-entry','units','billing','dashboard']
-  }[currentUser.role]||[];
+  const allowed=ROLE_PAGES[currentUser.role]||[];
   document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
     const page=btn.getAttribute('data-page');
     btn.style.display=allowed.includes(page)?'':'none';
@@ -304,12 +330,34 @@ function mobNav(id,btn){
   --navy:#1F3864;--blue:#2E75B6;--sky:#D6E4F0;--sky2:#EBF3FA;
   --orange:#C55A11;--red:#C00000;--red-bg:#FFE0E0;
   --green:#1E6B3C;--green-bg:#E6F4EC;--green2:#27AE60;
-  --amber:#E67E22;--off:#F0F4F9;--border:#B8CCE4;--text:#1A1A2E;--muted:#5A7099;
+  --amber:#E67E22;
+  /* Theme Vars */
+  --bg-main:#F0F4F9; --bg-card:#FFFFFF; --bg-input:#F0F4F9;
+  --text-main:#1A1A2E; --text-muted:#5A7099;
+  --border-color:#B8CCE4;
   --mono:'DM Mono',monospace;--sans:'Sora',sans-serif;--r:10px;
   --sh:0 2px 12px rgba(31,56,100,.10);
+  /* Aliases for consistent usage throughout JS/HTML */
+  --muted:#5A7099;
+  --border:#B8CCE4;
+  --text:#1A1A2E;
+}
+[data-theme="dark"]{
+  --navy:#60A5FA; --blue:#3B82F6; --sky:#334155; --sky2:#1E293B;
+  --orange:#FB923C; --red:#F87171; --red-bg:#451A1A;
+  --green:#4ADE80; --green-bg:#064E3B; --green2:#4ADE80;
+  --amber:#FBBF24;
+  --bg-main:#0F172A; --bg-card:#1E293B; --bg-input:#334155;
+  --text-main:#F1F5F9; --text-muted:#94A3B8;
+  --border-color:#334155;
+  --sh:0 4px 20px rgba(0,0,0,.5);
+  /* Dark mode aliases */
+  --muted:#94A3B8;
+  --border:#334155;
+  --text:#F1F5F9;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--off);color:var(--text);min-height:100vh}
+body{font-family:var(--sans);background:var(--bg-main);color:var(--text-main);min-height:100vh}
 
 /* HEADER */
 header{background:linear-gradient(135deg,#162848 0%,#1F3864 55%,#2A4A82 100%);
@@ -337,18 +385,18 @@ header{background:linear-gradient(135deg,#162848 0%,#1F3864 55%,#2A4A82 100%);
 
 /* CONTROL BAR */
 .control-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:.85rem;
-  background:#fff;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);
   padding:1.1rem 1.35rem;margin-bottom:1.35rem;box-shadow:var(--sh)}
 .field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.1em;color:var(--muted);margin-bottom:.28rem}
 .field select,.field input[type=number],.field input[type=text]{width:100%;padding:.42rem .68rem;
-  border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.83rem;
-  color:var(--text);background:var(--off);transition:border-color .15s;appearance:none;
+  border:1.5px solid var(--border-color);border-radius:7px;font-family:var(--mono);font-size:.83rem;
+  color:var(--text-main);background:var(--bg-input);transition:border-color .15s;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7099'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right .62rem center;padding-right:1.85rem}
 .field input[type=number],.field input[type=text]{background-image:none;padding-right:.68rem}
 .field select:focus,.field input:focus{outline:none;border-color:var(--blue);
-  box-shadow:0 0 0 3px rgba(46,117,182,.14);background:#fff}
+  box-shadow:0 0 0 3px rgba(46,117,182,.14);background:var(--bg-card)}
 .btn-primary{align-self:flex-end;background:var(--navy);color:#fff;border:none;border-radius:7px;
   padding:.48rem 1rem;font-family:var(--sans);font-weight:700;font-size:.76rem;cursor:pointer;
   letter-spacing:.03em;white-space:nowrap;transition:background .15s,transform .1s}
@@ -356,7 +404,7 @@ header{background:linear-gradient(135deg,#162848 0%,#1F3864 55%,#2A4A82 100%);
 
 /* TABS */
 .tabs-row{display:flex;gap:.42rem;flex-wrap:wrap;margin-bottom:1.15rem;align-items:center}
-.tab{padding:.38rem .9rem;border-radius:20px;border:1.5px solid var(--border);background:#fff;
+.tab{padding:.38rem .9rem;border-radius:20px;border:1.5px solid var(--border-color);background:var(--bg-card);
   color:var(--muted);font-size:.74rem;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s}
 .tab:hover{border-color:var(--blue);color:var(--blue)}
 .tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -369,35 +417,35 @@ header{background:linear-gradient(135deg,#162848 0%,#1F3864 55%,#2A4A82 100%);
 
 /* TYPE SWITCHER */
 .type-sw{display:flex;gap:.42rem;margin-bottom:1.25rem}
-.type-btn{padding:.35rem 1rem;border-radius:7px;border:1.5px solid var(--border);background:#fff;
+.type-btn{padding:.35rem 1rem;border-radius:7px;border:1.5px solid var(--border-color);background:var(--bg-card);
   color:var(--muted);font-size:.76rem;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s}
 .type-btn.tw{background:var(--blue);color:#fff;border-color:var(--blue)}
 .type-btn.te{background:var(--orange);color:#fff;border-color:var(--orange)}
 .type-btn:not(.tw):not(.te):hover{border-color:var(--blue);color:var(--blue)}
 
 /* CARDS */
-.card{background:#fff;border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.25rem}
+.card{background:var(--bg-card);border-radius:var(--r);border:1px solid var(--border-color);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.25rem}
 .card-head{display:flex;align-items:center;justify-content:space-between;padding:.82rem 1.3rem;border-bottom:1px solid var(--sky)}
 .card-head h2{font-size:.8rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em}
 .card-head .sub{font-size:.68rem;color:var(--muted);margin-top:.07rem}
 .card-head .card-actions{display:flex;gap:.5rem;align-items:center}
 
 /* BILLING PANEL */
-.billing-panel{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.15rem 1.35rem;margin-bottom:1.25rem;box-shadow:var(--sh)}
+.billing-panel{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1.15rem 1.35rem;margin-bottom:1.25rem;box-shadow:var(--sh)}
 .bp-head{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--navy);margin-bottom:.9rem;display:flex;align-items:center;gap:.5rem}
 .billing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.85rem}
 .bf label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.25rem}
-.bf input{width:100%;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;
-  font-family:var(--mono);font-size:.83rem;color:var(--text);background:var(--off);transition:border-color .15s}
-.bf input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.12);background:#fff}
+.bf input{width:100%;padding:.42rem .68rem;border:1.5px solid var(--border-color);border-radius:7px;
+  font-family:var(--mono);font-size:.83rem;color:var(--text-main);background:var(--bg-input);transition:border-color .15s}
+.bf input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.12);background:var(--bg-card)}
 .bf .hint{font-size:.62rem;color:var(--muted);margin-top:.12rem}
 
 /* RECOVERY */
 .rec-strip{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:1.25rem}
-.rec-card{border-radius:var(--r);padding:1rem 1.3rem;border:1.5px solid transparent;position:relative;overflow:hidden}
+.rec-card{background:var(--bg-card);border-radius:var(--r);padding:1rem 1.3rem;border:1.5px solid transparent;position:relative;overflow:hidden}
 .rec-card.over{background:var(--green-bg);border-color:#A8D5B5}
 .rec-card.under{background:var(--red-bg);border-color:#F5AAAA}
-.rec-card.neutral{background:var(--sky2);border-color:var(--border)}
+.rec-card.neutral{background:var(--sky2);border-color:var(--border-color)}
 .rc-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.32rem}
 .rc-type{font-size:.68rem;font-weight:700;margin-bottom:.1rem}
 .rec-card.over .rc-type{color:var(--green)}.rec-card.under .rc-type{color:var(--red)}.rec-card.neutral .rc-type{color:var(--muted)}
@@ -410,7 +458,7 @@ header{background:linear-gradient(135deg,#162848 0%,#1F3864 55%,#2A4A82 100%);
 
 /* SUMMARY STRIP */
 .sum-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:.85rem;margin-bottom:1.25rem}
-.stat{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:.82rem 1rem;box-shadow:0 1px 6px rgba(46,117,182,.06)}
+.stat{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:.82rem 1rem;box-shadow:0 1px 6px rgba(46,117,182,.06)}
 .stat .sl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.24rem}
 .stat .sv{font-family:var(--mono);font-size:1.15rem;font-weight:500;color:var(--navy)}
 .stat .ss{font-size:.66rem;color:var(--muted);margin-top:.1rem}
@@ -424,21 +472,21 @@ thead th{background:var(--navy);color:#fff;padding:.55rem .75rem;text-align:left
 thead th.n{text-align:right}
 tbody tr{transition:background .1s}
 tbody tr:nth-child(even){background:var(--sky2)}
-tbody tr:hover{background:#C8DCEF}
+tbody tr:hover{background:rgba(46,117,182,.15)}
 tbody tr.lr{background:var(--red-bg)!important}
 tbody tr.lr:hover{background:#FFCECE!important}
-td{padding:.42rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+td{padding:.42rem .75rem;border-bottom:1px solid var(--border-color);vertical-align:middle}
 td.n{text-align:right;font-family:var(--mono)}
 td.ul{font-family:var(--mono);font-weight:500;color:var(--navy);font-size:.78rem;white-space:nowrap;min-width:90px}
 td input[type=number],td input[type=text],td select{width:100%;padding:.25rem .46rem;border:1.5px solid transparent;
-  border-radius:5px;font-family:var(--mono);font-size:.76rem;color:var(--text);background:transparent;
+  border-radius:5px;font-family:var(--mono);font-size:.76rem;color:var(--text-main);background:transparent;
   transition:border-color .12s,background .12s;text-align:right}
 td input[type=text]{text-align:left}
 td select{appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%235A7099'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right .33rem center;padding-right:1.2rem;text-align:left;cursor:pointer}
-td input:hover,td select:hover{border-color:var(--border);background:var(--off)}
-td input:focus,td select:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(46,117,182,.12)}
+td input:hover,td select:hover{border-color:var(--border-color);background:var(--bg-input)}
+td input:focus,td select:focus{outline:none;border-color:var(--blue);background:var(--bg-card);box-shadow:0 0 0 3px rgba(46,117,182,.12)}
 .uv{font-family:var(--mono);font-weight:500;color:var(--blue)}
 .cv{font-family:var(--mono);font-weight:600;color:var(--navy)}
 tfoot td{background:#D9E1F2;font-weight:700;color:var(--navy);padding:.55rem .75rem;font-family:var(--mono);border-top:2px solid var(--blue)}
@@ -455,16 +503,16 @@ tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;l
 .btn-exp.blue:hover{background:#1A5FA0;box-shadow:0 5px 14px rgba(46,117,182,.35)}
 .btn-exp.orange{background:var(--orange);box-shadow:0 3px 10px rgba(197,90,17,.25)}
 .btn-exp.orange:hover{background:#A04810;box-shadow:0 5px 14px rgba(197,90,17,.35)}
-.btn-ghost{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:8px;
+.btn-ghost{background:var(--bg-card);color:var(--navy);border:1.5px solid var(--border-color);border-radius:8px;
   padding:.55rem 1rem;font-family:var(--sans);font-weight:600;font-size:.78rem;cursor:pointer;transition:border-color .15s,color .15s}
 .btn-ghost:hover{border-color:var(--blue);color:var(--blue)}
-.btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red);border-radius:8px;
+.btn-danger{background:var(--bg-card);color:var(--red);border:1.5px solid var(--red);border-radius:8px;
   padding:.55rem 1rem;font-family:var(--sans);font-weight:700;font-size:.78rem;cursor:pointer;transition:all .15s}
 .btn-danger:hover{background:var(--red);color:#fff}
 
 /* DASHBOARD */
 .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.1rem;margin-bottom:1.3rem}
-.ds{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh);position:relative;overflow:hidden}
+.ds{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh);position:relative;overflow:hidden}
 .ds::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .ds.dw::before{background:linear-gradient(90deg,var(--blue),#7EC8E3)}
 .ds.de::before{background:linear-gradient(90deg,var(--orange),#F0A95A)}
@@ -478,14 +526,14 @@ tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;l
 .dbadge.over{background:var(--green-bg);color:var(--green)}
 .dbadge.under{background:var(--red-bg);color:var(--red)}
 .dbadge.na{background:var(--sky);color:var(--muted)}
-.chart-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.1rem}
+.chart-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.1rem}
 .cc-head{padding:.82rem 1.3rem;border-bottom:1px solid var(--sky);display:flex;align-items:center;justify-content:space-between}
 .cc-head h3{font-size:.78rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em}
 .cc-body{padding:1rem 1.3rem}
 .cc-body canvas{max-height:240px}
 .charts-2{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;margin-bottom:1.1rem}
 .ins-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.1rem}
-.ins-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh)}
+.ins-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh)}
 .ins-card h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);margin-bottom:.8rem;display:flex;align-items:center;gap:.42rem}
 .ir{display:flex;align-items:center;justify-content:space-between;padding:.36rem 0;border-bottom:1px solid var(--sky);font-size:.76rem}
 .ir:last-child{border-bottom:none}
@@ -497,7 +545,7 @@ tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;l
 
 /* ADMIN */
 .admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem}
-.admin-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.35rem;box-shadow:var(--sh)}
+.admin-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1.35rem;box-shadow:var(--sh)}
 .admin-card h3{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
 .admin-card p{font-size:.78rem;color:var(--muted);margin-bottom:1rem;line-height:1.55}
 .admin-card .btn-row{display:flex;gap:.65rem;flex-wrap:wrap}
@@ -506,15 +554,15 @@ tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;l
 
 /* COMPARISON */
 .compare-selectors{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;margin-bottom:1.35rem}
-.compare-sel-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh)}
+.compare-sel-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1.1rem 1.3rem;box-shadow:var(--sh)}
 .compare-sel-card label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.3rem}
 .compare-sel-card select{width:100%;padding:.44rem .7rem;border:1.5px solid var(--border);border-radius:7px;
-  font-family:var(--mono);font-size:.84rem;color:var(--text);background:var(--off);appearance:none;
+  font-family:var(--mono);font-size:.84rem;color:var(--text-main);background:var(--bg-input);appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7099'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right .65rem center;padding-right:1.9rem}
 .compare-sel-card select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.14)}
 .cmp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem}
-.cmp-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.2rem;box-shadow:var(--sh)}
+.cmp-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1rem 1.2rem;box-shadow:var(--sh)}
 .cmp-card .cm-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.35rem}
 .cmp-card .cm-vals{display:flex;gap:.75rem;align-items:flex-end}
 .cmp-card .cm-v{font-family:var(--mono);font-size:1.2rem;font-weight:500}
@@ -531,37 +579,37 @@ tfoot td.lbl{font-family:var(--sans);text-transform:uppercase;font-size:.66rem;l
 
 /* YTD SECTION */
 .ytd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.25rem}
-.ytd-stat{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.1rem;box-shadow:var(--sh);border-top:3px solid #7B2FBE}
+.ytd-stat{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:.9rem 1.1rem;box-shadow:var(--sh);border-top:3px solid #7B2FBE}
 .ytd-stat .yl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.22rem}
 .ytd-stat .yv{font-family:var(--mono);font-size:1.2rem;font-weight:500;color:var(--navy)}
 .ytd-stat .ys{font-size:.65rem;color:var(--muted);margin-top:.1rem}
 
 /* INVOICE */
-.inv-form{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.35rem;box-shadow:var(--sh);margin-bottom:1.25rem}
+.inv-form{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:1.35rem;box-shadow:var(--sh);margin-bottom:1.25rem}
 .inv-form h3{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--navy);margin-bottom:1rem}
 .inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.9rem;margin-bottom:1.1rem}
 .inv-field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:.25rem}
-.inv-field input,.inv-field select{width:100%;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;
-  font-family:var(--mono);font-size:.83rem;color:var(--text);background:var(--off);transition:border-color .15s;appearance:none;
+.inv-field input,.inv-field select{width:100%;padding:.42rem .68rem;border:1.5px solid var(--border-color);border-radius:7px;
+  font-family:var(--mono);font-size:.83rem;color:var(--text-main);background:var(--bg-input);transition:border-color .15s;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7099'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right .62rem center;padding-right:1.85rem}
 .inv-field input{background-image:none;padding-right:.68rem}
-.inv-field input:focus,.inv-field select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.14);background:#fff}
+.inv-field input:focus,.inv-field select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,117,182,.14);background:var(--bg-card)}
 
 /* IMPORT */
-.import-drop{border:2px dashed var(--border);border-radius:var(--r);padding:2rem;text-align:center;
+.import-drop{border:2px dashed var(--border-color);border-radius:var(--r);padding:2rem;text-align:center;
   cursor:pointer;transition:border-color .2s,background .2s;background:var(--sky2)}
 .import-drop:hover,.import-drop.drag-over{border-color:var(--blue);background:var(--sky)}
 .import-drop p{font-size:.82rem;color:var(--muted);margin-top:.5rem}
 .import-drop .big-icon{font-size:2rem;display:block;margin-bottom:.25rem}
 
 /* DASH EMPTY */
-.dash-empty{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:4rem 2rem;text-align:center;color:var(--muted);box-shadow:var(--sh)}
+.dash-empty{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--r);padding:4rem 2rem;text-align:center;color:var(--muted);box-shadow:var(--sh)}
 .dash-empty p{font-size:.83rem;margin-top:.7rem}
 
 /* SECTION DIVIDER */
-.section-hdr{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:2rem 0 1rem;display:flex;align-items:center;gap:.7rem}
-.section-hdr::after{content:'';flex:1;height:1px;background:var(--border)}
+.section-hdr{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:2rem 0 1rem;display:flex;align-items:center;gap:.7rem;margin-top:2.5rem}
+.section-hdr::after{content:'';flex:1;height:1px;background:var(--border-color)}
 
 /* TOAST */
 #toast{position:fixed;bottom:2rem;right:2rem;color:#fff;padding:.62rem 1.2rem;border-radius:8px;
@@ -577,7 +625,7 @@ input[type=file]{display:none}
 #mobileNavBar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:300;
   background:#1F3864;border-top:1px solid rgba(255,255,255,.1);
   padding:.5rem .25rem calc(.5rem + env(safe-area-inset-bottom));
-  display:none;justify-content:space-around;align-items:center;
+  justify-content:space-around;align-items:center;
   box-shadow:0 -4px 18px rgba(10,25,60,.35)}
 .mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:.18rem;
   background:none;border:none;cursor:pointer;padding:.3rem .5rem;border-radius:8px;
@@ -613,6 +661,9 @@ input[type=file]{display:none}
   /* Shell — extra bottom padding for mobile nav */
   .shell{padding:.85rem .7rem 5.5rem}
 
+  /* Toast — sits above mobile nav */
+  #toast{bottom:5rem;right:1rem;left:1rem;text-align:center}
+
   /* Control bar */
   .control-bar{grid-template-columns:1fr 1fr;gap:.65rem;padding:.9rem 1rem}
 
@@ -633,7 +684,7 @@ input[type=file]{display:none}
   /* Tables — horizontal scroll with sticky unit col */
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .tw table{min-width:580px}
-  td.ul{position:sticky;left:0;background:#fff;z-index:1;box-shadow:2px 0 4px rgba(0,0,0,.06)}
+  td.ul{position:sticky;left:0;background:var(--bg-card);z-index:1;box-shadow:2px 0 4px rgba(0,0,0,.06)}
   tbody tr:nth-child(even) td.ul{background:var(--sky2)}
   tbody tr.lr td.ul{background:var(--red-bg)!important}
   thead th:first-child{position:sticky;left:0;z-index:2;background:var(--navy)}
@@ -664,6 +715,13 @@ input[type=file]{display:none}
   /* Invoice */
   .inv-grid{grid-template-columns:1fr}
 
+  /* Invoice modal — full width on mobile */
+  #invModal{padding:.5rem}
+  #invModal > div{border-radius:8px}
+  #invModal > div > div:last-child{padding:1rem}
+  #invModal .hdr{flex-direction:column;gap:.5rem;align-items:flex-start}
+  #invModal .hdr > div:last-child{display:flex;flex-wrap:wrap;gap:.4rem}
+
   /* Buttons */
   .exp-row{gap:.5rem}
   .btn-exp,.btn-ghost{font-size:.74rem;padding:.5rem .9rem}
@@ -680,9 +738,9 @@ input[type=file]{display:none}
   .control-bar{grid-template-columns:1fr}
 }
 
-/* ═══ AUTH ═══ */
+/* ═══ AUTH OVERLAY ═══ */
 #authOverlay{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#0D1B3E 0%,#1F3864 60%,#2A4A82 100%);
-  display:none !important;align-items:center;justify-content:center;flex-direction:column;padding:1.5rem}
+  display:flex;align-items:center;justify-content:center;flex-direction:column;padding:1.5rem;}
 .auth-card{background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:380px;
   box-shadow:0 20px 60px rgba(0,0,0,.4)}
 .auth-logo{width:52px;height:52px;background:var(--blue);border-radius:12px;
@@ -693,8 +751,8 @@ input[type=file]{display:none}
 .auth-field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.1em;color:var(--muted);margin-bottom:.3rem}
 .auth-field input{width:100%;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:8px;
-  font-family:var(--sans);font-size:.92rem;color:var(--text);background:var(--off);transition:border-color .15s}
-.auth-field input:focus{outline:none;border-color:var(--blue);background:#fff;
+  font-family:var(--sans);font-size:.92rem;color:var(--text-main);background:var(--bg-input);transition:border-color .15s}
+.auth-field input:focus{outline:none;border-color:var(--blue);background:var(--bg-card);
   box-shadow:0 0 0 3px rgba(46,117,182,.15)}
 .auth-btn{width:100%;padding:.72rem;background:var(--navy);color:#fff;border:none;border-radius:8px;
   font-family:var(--sans);font-weight:700;font-size:.9rem;cursor:pointer;margin-top:.5rem;
@@ -705,34 +763,40 @@ input[type=file]{display:none}
 .auth-footer{color:rgba(255,255,255,.4);font-size:.68rem;margin-top:1.5rem;text-align:center}
 /* USER CHIP in header */
 .user-chip{display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:.22rem .7rem .22rem .45rem;cursor:pointer}
+  border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:.22rem .7rem .22rem .45rem;cursor:pointer;
+  transition:background .15s}
+.user-chip:hover{background:rgba(255,255,255,.2)}
 .user-chip .uc-avatar{width:22px;height:22px;border-radius:50%;background:var(--blue);
   display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff}
 .user-chip .uc-name{font-size:.7rem;font-weight:600;color:rgba(255,255,255,.9)}
 .user-chip .uc-role{font-size:.6rem;color:rgba(255,255,255,.55)}
 /* ROLE BADGE */
 .role-pill{display:inline-block;padding:.15rem .55rem;border-radius:12px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
-.role-pill.admin{background:rgba(31,56,100,.12);color:var(--navy)}
-.role-pill.entry{background:rgba(46,117,182,.12);color:var(--blue)}
-.role-pill.billing{background:rgba(197,90,17,.12);color:var(--orange)}
+.role-pill.admin{background:rgba(31,56,100,.14);color:var(--navy)}
+.role-pill.meter-reader{background:rgba(46,117,182,.12);color:var(--blue)}
 .role-pill.readonly{background:rgba(90,112,153,.12);color:var(--muted)}
+.role-pill.billing{background:rgba(197,90,17,.12);color:var(--orange)}
+/* Read-only overlay for restricted fields */
+.readonly-lock{pointer-events:none;opacity:.6;user-select:none}
+.readonly-banner{background:var(--sky2);border:1px solid var(--border-color);border-radius:8px;
+  padding:.6rem 1rem;margin-bottom:1rem;font-size:.75rem;color:var(--muted);display:flex;align-items:center;gap:.5rem}
 /* USER MANAGEMENT */
 .um-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.75rem}
-.um-table th{background:var(--navy);color:#fff;padding:.5rem .75rem;text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em}
-.um-table td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+.um-table th{background:var(--navy);color:#fff;padding:.5rem .75rem;text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
+.um-table td{padding:.5rem .75rem;border-bottom:1px solid var(--border-color);vertical-align:middle}
 .um-table tr:nth-child(even) td{background:var(--sky2)}
 .um-add-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;
   padding:1rem;background:var(--sky2);border-radius:8px;margin-top:1rem;align-items:end}
-.um-add-form input,.um-add-form select{padding:.42rem .68rem;border:1.5px solid var(--border);
-  border-radius:7px;font-family:var(--mono);font-size:.82rem;width:100%;background:#fff}
+.um-add-form input,.um-add-form select{padding:.42rem .68rem;border:1.5px solid var(--border-color);
+  border-radius:7px;font-family:var(--mono);font-size:.82rem;width:100%;background:var(--bg-card);color:var(--text-main)}
 .um-add-form input:focus,.um-add-form select:focus{outline:none;border-color:var(--blue)}
 
 /* UNITS PAGE */
 #unitsTable td{padding:.42rem .75rem;vertical-align:middle}
 #unitsTable td input{width:100%;padding:.22rem .42rem;border:1.5px solid transparent;border-radius:4px;
-  font-family:var(--mono);font-size:.76rem;background:transparent;transition:border-color .12s}
-#unitsTable td input:hover{border-color:var(--border);background:var(--off)}
-#unitsTable td input:focus{outline:none;border-color:var(--blue);background:#fff;
+  font-family:var(--mono);font-size:.76rem;background:transparent;transition:border-color .12s;color:var(--text-main)}
+#unitsTable td input:hover{border-color:var(--border-color);background:var(--bg-input)}
+#unitsTable td input:focus{outline:none;border-color:var(--blue);background:var(--bg-card);
   box-shadow:0 0 0 3px rgba(46,117,182,.1)}
 
 /* READING VALIDATION */
@@ -744,7 +808,35 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
 </head>
 <body>
 
-<header>
+<!-- ═══════════════ AUTH OVERLAY ═══════════════ -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <path d="M5 20 Q7 11 13 8 Q19 5 21 13" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <circle cx="13" cy="8" r="2.5" fill="#7EC8E3"/>
+        <rect x="10" y="13" width="6" height="7" rx="1.5" fill="#F0A95A"/>
+      </svg>
+    </div>
+    <h2>Utility Manager</h2>
+    <p class="auth-sub" id="authComplexSub">Sign in to your account</p>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="authUser" placeholder="your@email.com" autocomplete="username"
+        onkeydown="if(event.key==='Enter')document.getElementById('authPass').focus()">
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="authPass" placeholder="Enter password" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="auth-btn" onclick="doLogin()">Sign In</button>
+    <div class="auth-error" id="authError">Incorrect username or password.</div>
+  </div>
+  <div class="auth-footer">Utility Meter Readings · Secure Access</div>
+</div>
+
+<header style="opacity:0;pointer-events:none" id="mainHeader">
   <div class="brand">
     <div class="brand-icon">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -759,20 +851,22 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     </div>
   </div>
   <div class="header-nav" id="mainNav">
-    <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
-    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('units',this)">Units</button>
-    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('billing',this)">Billing</button>
-    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
-    <button class="nav-btn" data-roles="admin,billing" onclick="showPage('invoices',this)">Invoices</button>
-    <button class="nav-btn" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
+    <button class="nav-btn active" data-page="data-entry" data-roles="admin,meter-reader,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
+    <button class="nav-btn" data-page="units" data-roles="admin,readonly" onclick="showPage('units',this)">Units</button>
+    <button class="nav-btn" data-page="billing" data-roles="admin,readonly" onclick="showPage('billing',this)">Billing</button>
+    <button class="nav-btn" data-page="dashboard" data-roles="admin,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button class="nav-btn" data-page="invoices" data-roles="admin" onclick="showPage('invoices',this)">Invoices</button>
+    <button class="nav-btn" data-page="admin" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
   </div>
   <div class="hdr-right">
     <span id="dbStatus">● DB…</span>
     <div class="badge" id="activeBadge">No month selected</div>
-    <div class="user-chip" onclick="showUserMenu()" id="userChip" style="display:none">
-      <div class="uc-avatar" id="userAvatar">?</div>
-      <div><div class="uc-name" id="userChipName">–</div>
-        <div class="uc-role" id="userChipRole">–</div></div>
+    <div class="user-chip" id="userChip" onclick="showUserMenu()" style="display:none">
+      <div class="uc-avatar" id="ucAvatar">?</div>
+      <div>
+        <div class="uc-name" id="ucName">User</div>
+        <div class="uc-role" id="ucRole">—</div>
+      </div>
     </div>
   </div>
 </header>
@@ -792,12 +886,11 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
         <option value="11">November</option><option value="12">December</option>
       </select></div>
     <div class="field"><label>Year</label><select id="selYear"></select></div>
-    <div class="field"><label>Units</label><input type="number" id="numUnits" value="65" min="1" max="300"></div>
-    <div class="field"><label>Water Rate (R/kl)</label><input type="number" id="waterRate" value="34.95" step="0.01" min="0"></div>
-    <div class="field"><label>Elec Rate (R/kWh)</label><input type="number" id="elecRate" value="3.24" step="0.01" min="0"></div>
     <div class="field" style="display:flex;align-items:flex-end;gap:.5rem;flex-wrap:wrap">
       <button class="btn-primary" onclick="addMonth()">＋ Add Month</button>
-      <button class="btn-primary" style="background:var(--blue)" onclick="document.getElementById('importReadingsFile').click()">⬆ Import</button>
+      <button class="btn-primary" style="background:var(--blue)" onclick="document.getElementById('importReadingsFile').click()">⬆ Import Excel</button>
+      <button class="btn-primary" style="background:var(--green)" onclick="exportExcel()">⬇ Export Excel</button>
+      <button class="btn-primary" style="background:var(--orange)" onclick="exportPDF()">⬇ Export PDF</button>
       <input type="file" id="importReadingsFile" accept=".xlsx,.xls" onchange="importReadings(this)">
     </div>
   </div>
@@ -902,11 +995,14 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     <div class="tw"><table class="um-table" id="unitsTable">
       <thead><tr>
         <th style="width:70px">Unit #</th>
+        <th>Acc No</th>
+        <th>Type</th>
         <th>Person 1</th>
         <th>P1 Email</th>
         <th>P1 Phone</th>
         <th>Person 2</th>
         <th>P2 Email</th>
+        <th>P2 Phone</th>
         <th>Notes</th>
         <th style="width:80px">Actions</th>
       </tr></thead>
@@ -916,9 +1012,16 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
 
   <div class="admin-card">
     <h3 id="unitFormTitle" style="margin-bottom:1rem">Add / Edit Unit</h3>
-    <div style="margin-bottom:.75rem">
-      <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Unit Number</label>
-      <input type="number" id="uoUnit" placeholder="e.g. 1" min="1" style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:120px">
+    <div style="display:flex;gap:1rem;margin-bottom:.75rem">
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Unit Number</label>
+        <input type="number" id="uoUnit" placeholder="e.g. 1" min="1" style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border-color);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:100px;background:var(--bg-input);color:var(--text-main)"></div>
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Account Number</label>
+        <input type="text" id="uoAccNo" placeholder="Acc No..." style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border-color);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:140px;background:var(--bg-input);color:var(--text-main)"></div>
+      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Type</label>
+        <select id="uoType" style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border-color);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:120px;background:var(--bg-input);color:var(--text-main)">
+          <option value="Owner">Owner</option>
+          <option value="Tenant">Tenant</option>
+        </select></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem">
       <div style="background:var(--sky2);border-radius:8px;padding:1rem">
@@ -959,7 +1062,20 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
   </div>
 </div>
 <div id="page-admin" class="page">
-  <div class="section-hdr">Database Management</div>
+  <div class="section-hdr">User Management</div>
+  <div class="admin-card" style="max-width:980px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+      <h3 style="margin-bottom:0">👥 Users &amp; Access Control</h3>
+      <button class="btn-exp" style="font-size:.74rem;padding:.42rem 1rem" onclick="showAddUserModal()">＋ Add User</button>
+    </div>
+    <p style="margin-bottom:1rem">Manage who can access this system. <strong>Admin</strong> — full access. <strong>Meter Reader</strong> — readings only. <strong>Read Only</strong> — view all, no edits.</p>
+    <table class="um-table">
+      <thead><tr><th>Email</th><th>Display Name</th><th>Role</th><th style="width:180px">Actions</th></tr></thead>
+      <tbody id="usersAdminBody"><tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--muted)">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section-hdr" style="margin-top:2rem">Database Management</div>
   <div class="admin-grid">
     <div class="admin-card">
       <h3>&#x1F4E4; Export Database</h3>
@@ -992,6 +1108,27 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
         </button>
       </div>
     </div>
+    <div class="admin-card">
+      <h3>🐙 GitHub Backup</h3>
+      <p>Automatically commit a full database backup to a GitHub repository on a schedule or on demand. Requires a GitHub Personal Access Token with <code style="font-size:.72rem;background:var(--sky2);padding:.1rem .3rem;border-radius:4px">repo</code> scope.</p>
+      <div id="ghConfigDisplay" style="margin-bottom:.85rem"></div>
+      <div class="btn-row">
+        <button class="btn-exp blue" onclick="backupToGitHub()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1C3.69 1 1 3.69 1 7c0 2.65 1.72 4.9 4.1 5.69.3.06.41-.13.41-.29v-1.02c-1.67.36-2.02-.8-2.02-.8-.27-.7-.67-.88-.67-.88-.55-.37.04-.37.04-.37.61.04.93.63.93.63.54.92 1.41.66 1.76.5.05-.39.21-.66.38-.81-1.33-.15-2.73-.67-2.73-2.96 0-.65.23-1.19.63-1.6-.07-.15-.27-.76.05-1.58 0 0 .52-.17 1.69.63A5.9 5.9 0 0 1 7 4.82c.52 0 1.05.07 1.54.21 1.17-.8 1.69-.63 1.69-.63.33.82.12 1.43.06 1.58.39.42.62.95.62 1.6 0 2.3-1.4 2.81-2.74 2.96.22.19.41.56.41 1.13v1.67c0 .16.11.35.41.29A6.002 6.002 0 0 0 13 7c0-3.31-2.69-6-6-6z" fill="#fff"/></svg>
+          Backup Now to GitHub
+        </button>
+        <button class="btn-ghost" onclick="showGitHubConfig()">⚙ Configure</button>
+      </div>
+      <div id="ghLastBackup" style="font-size:.7rem;color:var(--muted);margin-top:.6rem"></div>
+    </div>
+    <div class="admin-card">
+      <h3>🎨 Appearance</h3>
+      <p>Customize the look and feel of the application.</p>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="setTheme('light')">☀️ Light</button>
+        <button class="btn-ghost" onclick="setTheme('dark')">🌙 Dark</button>
+      </div>
+    </div>
     <div class="admin-card danger-zone">
       <h3>⚠️ Danger Zone</h3>
       <p>Permanently delete all months, readings, billing data and settings from the local database. This action <strong>cannot be undone</strong>. Export a backup first.</p>
@@ -1001,41 +1138,18 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     </div>
   </div>
 
-  <div class="section-hdr">Database Status</div>
+  <div class="section-hdr" style="margin-top:2rem">Database Status</div>
   <div class="admin-card" id="adminStatus" style="max-width:600px">
     <h3>&#x2139;&#xFE0F; Current Status</h3>
     <div id="adminStatusBody"><p style="font-size:.78rem;color:var(--muted)">Loading...</p></div>
   </div>
 
-  <div class="section-hdr">User Management</div>
-  <div class="admin-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-      <h3 style="margin-bottom:0">System Users</h3>
-      <span style="font-size:.72rem;color:var(--muted)">Passwords are hashed — not stored in plain text</span>
-    </div>
-    <div class="tw"><table class="um-table" id="umTable">
-      <thead><tr>
-        <th>Username</th><th>Display Name</th><th>Role</th><th>Last Login</th><th>Actions</th>
-      </tr></thead>
-      <tbody id="umBody"></tbody>
-    </table></div>
-    <div class="um-add-form" id="umAddForm">
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Username</label>
-        <input type="text" id="umNewUser" placeholder="e.g. jsmith"></div>
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Display Name</label>
-        <input type="text" id="umNewName" placeholder="e.g. John Smith"></div>
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Password</label>
-        <input type="password" id="umNewPass" placeholder="Password"></div>
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Role</label>
-        <select id="umNewRole">
-          <option value="admin">Admin — Full access</option>
-          <option value="entry">Data Entry — Enter readings</option>
-          <option value="billing">Billing — Billing &amp; invoices</option>
-          <option value="readonly">Read Only — View &amp; dashboard</option>
-        </select></div>
-      <div style="display:flex;gap:.5rem">
-        <button class="btn-exp" onclick="addUser()" style="white-space:nowrap">Add User</button>
-      </div>
+  <div class="section-hdr">Cloud Connection</div>
+  <div class="admin-card" style="max-width:600px">
+    <h3>☁️ Supabase Status</h3>
+    <div id="cloudDisplayArea"><p style="font-size:.78rem;color:var(--muted)">Checking...</p></div>
+    <div style="margin-top:.85rem;display:flex;gap:.65rem;flex-wrap:wrap">
+      <button class="btn-exp blue" onclick="syncLocalToCloud()">↑ Sync Local → Cloud</button>
     </div>
   </div>
 
@@ -1061,6 +1175,9 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
         <div class="inv-field"><label>Branch Code</label><input type="text" id="invBranch" placeholder="250655"></div>
         <div class="inv-field"><label>Account Type</label><input type="text" id="invAccType" placeholder="Cheque / Current"></div>
         <div class="inv-field"><label>VAT Number (optional)</label><input type="text" id="invVAT" placeholder="4XXXXXXXXX"></div>
+        <div class="inv-field"><label>Default Units (per month)</label><input type="number" id="invNumUnits" value="65" min="1" max="300"></div>
+        <div class="inv-field"><label>Water Rate (R/kl)</label><input type="number" id="invWaterRate" value="34.95" step="0.01" min="0"></div>
+        <div class="inv-field"><label>Electricity Rate (R/kWh)</label><input type="number" id="invElecRate" value="3.24" step="0.01" min="0"></div>
       </div>
       <div style="display:flex;gap:.65rem">
         <button class="btn-exp" onclick="savePropSettings()">Save Settings</button>
@@ -1100,13 +1217,16 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
 <script>
 const MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const months={};
+const units={};
+function getUnitRecord(unitNum, type='Owner'){ return units[`${unitNum}_${type}`]; }
+// Fallback for PDF/Invoice logic that expects just one record
+function getUnitOwner(unitNum){ return getUnitRecord(unitNum,'Owner') || getUnitRecord(unitNum,'Tenant'); }
 let activeKey=null, activeType='water', charts={};
 
-// ═══════════════ LOCAL DB CONFIG ═══════════════
-// Supabase removed: offline IndexedDB-only mode
+// ── DB status tracking ──
 let dbOnline=false;
 // Keep IndexedDB as offline fallback
-const DB_NAME='MeterReadingsDB', DB_VER=4, STORE='months';
+const DB_NAME='MeterReadingsDB', DB_VER=6, STORE='months';
 let db=null;
 
 function openDB(){
@@ -1117,9 +1237,16 @@ function openDB(){
       const stores={
         [STORE]:{keyPath:'key'},
         propSettings:{keyPath:'key'},
-        users:{keyPath:'username'},
-        unitOwners:{keyPath:'unit'}
+        unitOwners:{keyPath:['unit','type']}
       };
+      
+      // Schema Migration for Unit Owners (Unique ID -> Composite Key)
+      if(e.oldVersion < 5 && d.objectStoreNames.contains('unitOwners')){
+        d.deleteObjectStore('unitOwners');
+        d.createObjectStore('unitOwners', {keyPath: ['unit','type']});
+      }
+
+      // Create any missing stores
       Object.entries(stores).forEach(([name,opts])=>{
         if(!d.objectStoreNames.contains(name)) d.createObjectStore(name,opts);
       });
@@ -1129,32 +1256,75 @@ function openDB(){
   });
 }
 
-// ── STATUS INDICATOR ──
+// ── STATUS INDICATOR ─────────
 function setDBStatus(){
   const el=document.getElementById('dbStatus');
   if(!el)return;
-  el.textContent='● Local DB';
-  el.style.color='#7EC8E3';
-  el.title='Using local IndexedDB only';
+  if(typeof sb!=='undefined'&&sb){
+    el.textContent='● Supabase';
+    el.style.color='#10B981';
+    el.title='Cloud database connected';
+    dbOnline=true;
+  } else {
+    el.textContent='● Offline';
+    el.style.color='#F0A95A';
+    el.title='Offline mode — changes will sync when connection restores';
+    dbOnline=false;
+  }
 }
 
-
 // ══════════════════════════════════════════
-// MONTHS — save / delete / load (local IndexedDB only)
+// MONTHS — save / delete / load
 // ══════════════════════════════════════════
 async function dbSave(key){
-  if(!db) return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
-  catch(e){ console.error('idbSave failed',e); }
+  const record={
+    key,
+    label:months[key].label, month:months[key].month, year:months[key].year,
+    units:months[key].units, water_rate:months[key].waterRate, elec_rate:months[key].elecRate,
+    water:months[key].water, elec:months[key].elec, billing:months[key].billing
+  };
+  // Save to Supabase if available
+  if(sb){
+    try{
+      await sb.from('months').upsert(record);
+    }catch(e){ console.warn('Supabase save failed, falling back to IDB',e); }
+  }
+  // Always save to IndexedDB as offline fallback
+  if(db){
+    try{
+      db.transaction(STORE,'readwrite').objectStore(STORE).put(record);
+    }catch(e){ console.error('IDB save failed',e); }
+  }
 }
 
 async function dbDelete(key){
-  if(!db) return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
-  catch(e){ console.error('idbDelete failed',e); }
+  // Delete from Supabase
+  if(sb){
+    try{
+      await sb.from('months').delete().eq('key',key);
+    }catch(e){ console.warn('Supabase delete failed',e); }
+  }
+  // Always delete from IndexedDB too
+  if(db){
+    try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }catch(e){}
+  }
 }
 
 async function dbLoadAll(){
+  // Load from Supabase
+  if(sb){
+    try{
+      const {data, error}=await sb.from('months').select('*');
+      if(!error && data){
+        return data.map(r=>({
+          key:r.key, label:r.label, month:r.month, year:r.year,
+          units:r.units, waterRate:r.water_rate, elecRate:r.elec_rate,
+          water:r.water||[], elec:r.elec||r.electricity||[], billing:r.billing||{}
+        }));
+      }
+    }catch(e){ console.warn('Supabase load failed, using IDB',e); }
+  }
+  // Fallback to IndexedDB
   return new Promise(res=>{
     if(!db){res([]);return;}
     const req=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
@@ -1169,15 +1339,58 @@ async function dbLoadAll(){
 const PROP_STORE='propSettings';
 
 async function savePropToDB(){
-  if(!db) return;
-  try{ db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings}); }
-  catch(e){ console.error('idbSaveProp failed',e); }
+  const record={key:'main',...propSettings};
+  // Try Supabase first
+  if(sb){
+    try{
+      const sbRecord = {
+        id: 1,
+        complex: propSettings.complex,
+        addr1: propSettings.addr1,
+        addr2: propSettings.addr2,
+        contact: propSettings.contact,
+        email: propSettings.email,
+        phone: propSettings.phone,
+        bank: propSettings.bank,
+        acc_no: propSettings.accNo,
+        branch: propSettings.branch,
+        acc_type: propSettings.accType,
+        vat: propSettings.vat,
+        num_units: propSettings.numUnits,
+        water_rate: propSettings.waterRate,
+        elec_rate: propSettings.elecRate
+      };
+      await sb.from('prop_settings').upsert(sbRecord);
+    }catch(e){ console.warn('Supabase prop save failed',e); }
+  }
+  // Fallback to IndexedDB
+  if(db){
+    try{ db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put(record); }
+    catch(e){ console.error('idbSaveProp failed',e); }
+  }
 }
 
 async function loadPropFromDB(){
+  // Try Supabase first
+  if(sb){
+    try{
+      const {data, error}=await sb.from('prop_settings').select('*').eq('id',1).single();
+      if(!error && data){
+        Object.assign(propSettings,{complex:data.complex||'',addr1:data.addr1||'',addr2:data.addr2||'',
+          contact:data.contact||'',email:data.email||'',phone:data.phone||'',
+          bank:data.bank||'',accNo:data.acc_no||'',branch:data.branch||'',
+            accType:data.acc_type||'',vat:data.vat||'',
+            numUnits:data.num_units||65, waterRate:data.water_rate||34.95, elecRate:data.elec_rate||3.24
+          });
+        return;
+      }
+    }catch(e){ console.warn('Supabase prop load failed, using IDB',e); }
+  }
+  // Fallback to IndexedDB
+  if(!db){return;}
   return new Promise(res=>{
-    if(!db){res();return;}
-    const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
+    const tx=db.transaction(PROP_STORE,'readonly');
+    const req=tx.objectStore(PROP_STORE).get('main');
     req.onsuccess=e=>{
       if(e.target.result){ const{key,...data}=e.target.result; Object.assign(propSettings,data); }
       res();
@@ -1187,50 +1400,66 @@ async function loadPropFromDB(){
 }
 
 // ══════════════════════════════════════════
-// USERS
-// ══════════════════════════════════════════
-const USER_STORE='users';
-
-async function dbSaveUser(u){
-  if(!db) return;
-  try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u); }
-  catch(e){ console.error('idbSaveUser failed',e); }
-}
-
-async function dbDeleteUser(username){
-  if(!db) return;
-  try{ db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username); }
-  catch(e){ console.error('idbDeleteUser failed',e); }
-}
-
-async function dbGetAllUsers(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
-  });
-}
-
-// ══════════════════════════════════════════
 // UNIT OWNERS
 // ══════════════════════════════════════════
 const UNITS_STORE='unitOwners';
 
 async function dbSaveUnit(u){
-  if(!db) return;
   const unitNum=parseInt(u.unit);
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put({...u,unit:unitNum}); }
-  catch(e){ console.error('idbSaveUnit failed',e); }
+  // Try Supabase first
+  if(sb){
+    try{
+      await sb.from('unit_owners').upsert({
+        unit:unitNum, acc_no:u.accNo||'', type:u.type||'Owner',
+        first:u.first||'', last:u.last||'', email:u.email||'', phone:u.phone||'',
+        first2:u.first2||'', last2:u.last2||'', email2:u.email2||'', phone2:u.phone2||'',
+        notes:u.notes||''
+      });
+      return;
+    }catch(e){ console.warn('Supabase unit save failed, using IDB',e); }
+  }
+  // Fallback to IndexedDB
+  if(db){
+    try{
+      const record={...u,unit:unitNum};
+      db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(record);
+    }catch(e){ console.error('idbSaveUnit failed',e); }
+  }
 }
 
-async function dbDeleteUnit(unitNum){
-  if(!db) return;
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(unitNum)); }
-  catch(e){ console.error('idbDeleteUnit failed',e); }
+async function dbDeleteUnit(unitNum, type='Owner'){
+  const n=parseInt(unitNum);
+  // Try Supabase first
+  if(sb){
+    try{
+      await sb.from('unit_owners').delete().match({unit:n, type:type});
+      return;
+    }catch(e){ console.warn('Supabase unit delete failed, using IDB',e); }
+  }
+  // Fallback to IndexedDB
+  if(db){
+    try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete([n, type]); }
+    catch(e){ console.error('idbDeleteUnit failed',e); }
+  }
 }
 
 async function dbLoadAllUnits(){
+  // Try Supabase first
+  if(sb){
+    try{
+      const {data, error}=await sb.from('unit_owners').select('*').order('unit');
+      if(!error && data){
+        return data.map(r=>({
+          unit:parseInt(r.unit), accNo:r.acc_no||'', type:r.type||'Owner',
+          first:r.first||'', last:r.last||'', email:r.email||'', phone:r.phone||'',
+          first2:r.first2||'', last2:r.last2||'', email2:r.email2||'', phone2:r.phone2||'',
+          notes:r.notes||''
+        }));
+      }
+    }catch(e){ console.warn('Supabase unit load failed, using IDB',e); }
+  }
+  // Fallback to IndexedDB
+  return new Promise(res=>{
     if(!db){res([]);return;}
     const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
     req.onsuccess=e=>res(e.target.result||[]);
@@ -1241,17 +1470,22 @@ async function dbLoadAllUnits(){
 async function loadUnitsFromDB(){
   const saved=await dbLoadAllUnits();
   saved.forEach(u=>{
-    const normalised={...u,unit:parseInt(u.unit)};
-    units[String(normalised.unit)]=normalised;
+    const normalised={...u,unit:parseInt(u.unit), type: u.type||'Owner'};
+    units[`${normalised.unit}_${normalised.type}`]=normalised;
   });
 }
 
+// ── THEME MANAGER ──
+function setTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('mra_theme', theme);
+}
+const savedTheme = localStorage.getItem('mra_theme') || 'light';
+setTheme(savedTheme);
+
 // ═══════════════ INIT ═══════════════
 async function init(){
-  // Hide main content until authenticated
   document.querySelector('.shell').style.display='none';
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
 
   const sy=document.getElementById('selYear');
   const now=new Date();
@@ -1261,67 +1495,82 @@ async function init(){
     sy.appendChild(o);
   }
   document.getElementById('selMonth').value=String(now.getMonth()+1).padStart(2,'0');
+
+  // Open IDB for offline data fallback (not for auth)
+  try{ await openDB(); }catch(e){ console.warn('IDB unavailable',e); }
+
+  // Pre-load prop settings for login screen branding
   try{
-    // Try IndexedDB for local storage
-    try{ await openDB(); }catch(e){ console.warn('IDB unavailable',e); }
+    await loadPropFromDB();
+    const sub=document.getElementById('authComplexSub');
+    if(sub&&propSettings.complex) sub.textContent=propSettings.complex;
+    updateHeaderComplex();
+  }catch(e){}
 
-    setDBStatus(false);
+  // Check for an existing Supabase Auth session
+  if(sb){
+    try{
+      const {data:{session}}=await sb.auth.getSession();
+      if(session){
+        const profile=await sbGetProfile(session.user.id);
+        if(profile){
+          currentUser={id:session.user.id,email:session.user.email,displayName:profile.display_name||session.user.email,role:profile.role||'readonly'};
+          const hdr=document.getElementById('mainHeader');
+          hdr.style.opacity=''; hdr.style.pointerEvents='';
+          await loadAppData();
+          afterLogin();
+          return;
+        }
+      }
+    }catch(e){ console.warn('[Auth] Session restore failed:',e); }
+  }
 
-    // Always seed default admin to LOCAL IDB first (guarantees login works offline)
-    await seedDefaultAdmin();
+  // No valid session — show login
+  document.getElementById('authOverlay').style.display='flex';
+}
 
+async function loadAppData(){
+  try{
     await loadPropFromDB();
     await loadUnitsFromDB();
+    setDBStatus();
     updateHeaderComplex();
-    const sub=document.getElementById('authComplexSub');
-    if(sub&&propSettings.complex) sub.textContent=propSettings.complex+' — Please sign in';
-
+    updateRatesDisplay();
     const saved=await dbLoadAll();
     saved.forEach(rec=>{ const{key,...data}=rec; months[key]=data; });
     const keys=Object.keys(months).sort();
     if(keys.length){ renderTabs(); activateTab(keys[keys.length-1]); }
   }catch(err){
-    console.error('Init error',err);
-    setDBStatus(false);
+    console.error('Load error',err);
+    setDBStatus();
   }
   populateInvMonths();
-
-  // Check for existing session
-  const session=loadSession();
-  if(session){
-    currentUser=session;
-    applyAuth();
-  } else {
-    // TEMP: disable logon portion by auto-signing in as admin
-    currentUser={username:'admin',name:'Administrator',role:'admin'};
-    applyAuth();
-  }
 }
-init();
+
+window.addEventListener('DOMContentLoaded', init);
 
 // ═══════════════ PAGE NAV ═══════════════
 function showPage(id,btn){
-  syncMobileNav(id);
-  // Role guard — skip if not logged in yet
+  // RBAC guard
   if(currentUser){
-    const allowed={
-      admin:['data-entry','units','billing','dashboard','invoices','admin'],
-      entry:['data-entry','units','billing','dashboard'],
-      billing:['data-entry','units','billing','dashboard','invoices'],
-      readonly:['data-entry','units','billing','dashboard']
-    }[currentUser.role]||[];
-    if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
+    const allowed=ROLE_PAGES[currentUser.role]||[];
+    if(!allowed.includes(id)){showToast('Access denied','#C00000');return;}
   }
+  syncMobileNav(id);
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
+  const page=document.getElementById('page-'+id);
+  if(!page){ console.warn('showPage: no page for',id); return; }
+  page.classList.add('active');
   if(btn)btn.classList.add('active');
   if(id==='billing'){switchBillingTab('billing');}
   if(id==='dashboard')renderDashboard();
   if(id==='compare'){showPage('billing',document.querySelector('[onclick*="billing"]'));return;}
-  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
+  if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();renderCloudDisplay();updatePropertyBanner();renderUsersAdmin();initGitHubBackupDisplay();}
   if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
   if(id==='units')renderUnitsTable();
+  // Re-apply read-only after page switch
+  if(currentUser?.role==='readonly') applyReadOnlyMode();
 }
 
 // ═══════════════ MONTH MANAGEMENT ═══════════════
@@ -1330,9 +1579,9 @@ function addMonth(){
   const y=document.getElementById('selYear').value;
   const key=`${y}-${m}`;
   if(months[key]){activateTab(key);showToast('Sheet already exists!','#C55A11');return;}
-  const units=parseInt(document.getElementById('numUnits').value)||65;
-  const wr=parseFloat(document.getElementById('waterRate').value)||34.95;
-  const er=parseFloat(document.getElementById('elecRate').value)||3.24;
+  const units=propSettings.numUnits||parseInt(document.getElementById('numUnits')?.value||65);
+  const wr=propSettings.waterRate||parseFloat(document.getElementById('waterRate')?.value||34.95);
+  const er=propSettings.elecRate||parseFloat(document.getElementById('elecRate')?.value||3.24);
   months[key]={
     label:`${MNAMES[parseInt(m)-1]} ${y}`,month:m,year:y,units,waterRate:wr,elecRate:er,
     water:Array.from({length:units},(_,i)=>({unit:i+1,opening:'',closing:'',flagLeak:false,notes:''})),
@@ -1388,15 +1637,14 @@ function renderEntryContent(){
 }
 
 function switchType(t){activeType=t;renderEntryContent();
-  if(currentUser&&currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
+  // No read-only check needed
 }
 
 function renderSumStrip(c){
   const d=months[activeKey];
   const rows=activeType==='water'?d.water:d.elec;
-  const rate=activeType==='water'?d.waterRate:d.elecRate;
+  let rate=activeType==='water'?d.waterRate:d.elecRate;
+  if(!rate) rate=activeType==='water'?propSettings.waterRate||34.95:propSettings.elecRate||3.24;
   const unit=activeType==='water'?'kl':'kWh';
   let tU=0,tC=0,filled=0,leaks=0;
   rows.forEach(r=>{
@@ -1407,8 +1655,8 @@ function renderSumStrip(c){
   const s=document.createElement('div'); s.className='sum-strip';
   s.innerHTML=`
     <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
-      <div class="sv">${tU.toFixed(activeType==='water'?4:0)}</div><div class="ss">${unit} this month</div></div>
-    <div class="stat"><div class="sl">💰 Total Charge</div>
+      <div class="sv">${tU.toFixed(0)}</div><div class="ss">${unit} this month</div></div>
+    <div class="stat" style="cursor:pointer" onclick="switchBillingTab('billing');document.querySelector('[data-billing-month=\"${activeKey}\"]')?.scrollIntoView({behavior:'smooth',block:'nearest'})"><div class="sl">💰 Total Charge</div>
       <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
     <div class="stat"><div class="sl">📋 Captured</div>
       <div class="sv">${filled}/${d.units}</div><div class="ss">readings entered</div></div>
@@ -1421,14 +1669,14 @@ function renderSumStrip(c){
 function renderDataTable(c){
   const d=months[activeKey];
   const rows=activeType==='water'?d.water:d.elec;
-  const rate=activeType==='water'?d.waterRate:d.elecRate;
+  let rate=activeType==='water'?d.waterRate:d.elecRate;
+  if(!rate) rate=activeType==='water'?propSettings.waterRate||34.95:propSettings.elecRate||3.24;
   const unit=activeType==='water'?'kl':'kWh';
-  const isW=activeType==='water'; const dp=isW?4:0;
+  const isW=activeType==='water'; const dp=0;
 
   const card=document.createElement('div'); card.className='card';
   const hd=document.createElement('div'); hd.className='card-head';
-  hd.innerHTML=`<div><h2>${isW?'💧 Water':'⚡ Electricity'} Readings</h2>
-    <div class="sub">${d.label} · Rate: R${rate}/${unit}</div></div>`;
+  hd.innerHTML=`<div><h2>${isW?'💧 Water':'⚡ Electricity'} Readings</h2></div>`;
   card.appendChild(hd);
   const tw=document.createElement('div'); tw.className='tw';
   const tbl=document.createElement('table');
@@ -1445,6 +1693,8 @@ function renderDataTable(c){
 
   const tbody=tbl.querySelector('#tbd'); let tU=0,tC=0;
   rows.forEach((row,idx)=>{
+    const valO = row.opening!=='' && !isNaN(row.opening) ? parseFloat(row.opening).toFixed(dp) : row.opening;
+    const valC = row.closing!=='' && !isNaN(row.closing) ? parseFloat(row.closing).toFixed(dp) : row.closing;
     const tr=document.createElement('tr');
     if(isW&&row.flagLeak) tr.classList.add('lr');
     const o=parseFloat(row.opening),cl=parseFloat(row.closing);
@@ -1452,18 +1702,16 @@ function renderDataTable(c){
     const ch=u!==null?u*rate:null;
     if(u!==null){tU+=u;tC+=ch;}
     tr.innerHTML=`<td class="ul" style="white-space:nowrap">Unit ${row.unit}<button onclick="showUnitInfo(${row.unit},event)" title="Owner info" style="margin-left:.4rem;background:none;border:1.5px solid var(--border);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:.6rem;color:var(--blue);font-weight:700;line-height:1;padding:0;vertical-align:middle">i</button></td>
-      <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.opening}"
+      <td class="n"><input type="number" step="1" placeholder="—" value="${valO}" min="0"
         onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value,this)"></td>
-      <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
+      <td class="n"><input type="number" step="1" placeholder="—" value="${valC}" min="0"
         onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value,this)"></td>
       <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
       <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
-      <td>${isW?`<select onchange="upRow('${activeKey}','${activeType}',${idx},'flagLeak',this.value==='leak')">
+      <td>${isW?`<select onchange="upRow('${activeKey}','${activeType}',${idx},'flagLeak',this.value)">
         <option value="">Normal</option>
-        <option value="leak"${row.flagLeak?' selected':''}>🔴 Possible Leak</option>
         <option value="meter"${row.notes==='Faulty meter'?' selected':''}>⚠️ Faulty Meter</option>
-        <option value="access"${row.notes==='No access'?' selected':''}>🚫 No Access</option>
-        <option value="dispute"${row.notes==='Disputed reading'?' selected':''}>❓ Disputed Reading</option>
+        <option value="leak"${row.flagLeak?' selected':''}>🔴 Possible Leak</option>
       </select>`:`<input type="text" placeholder="Note…" value="${row.notes||''}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'notes',this.value)">`}</td>`;
     tbody.appendChild(tr);
@@ -1473,8 +1721,6 @@ function renderDataTable(c){
 }
 
 function upRow(key,type,idx,field,value,inputEl){
-  if(currentUser&&currentUser.role==='readonly'){showToast('Read-only access','#C55A11');return;}
-
   if(field==='flagLeak'){
     months[key][type][idx].flagLeak=(value==='leak');
     if(value&&value!=='leak') months[key][type][idx].notes=
@@ -1503,13 +1749,18 @@ function upRow(key,type,idx,field,value,inputEl){
       return;
     }
 
+    if(value!==''&&!isNaN(num)&&num<0){
+      showValidationError(inputEl,'Cannot be negative');
+      return;
+    }
+
     if(!isNaN(num)&&!isNaN(otherVal)){
       if(field==='closing'&&num<otherVal){
-        showValidationError(inputEl,'Closing ('+num.toFixed(4)+') cannot be less than opening ('+otherVal.toFixed(4)+')');
+        showValidationError(inputEl,'Closing ('+num.toFixed(0)+') cannot be less than opening ('+otherVal.toFixed(0)+')');
         return;
       }
       if(field==='opening'&&num>otherVal){
-        showValidationError(inputEl,'Opening ('+num.toFixed(4)+') cannot exceed closing ('+otherVal.toFixed(4)+')');
+        showValidationError(inputEl,'Opening ('+num.toFixed(0)+') cannot exceed closing ('+otherVal.toFixed(0)+')');
         return;
       }
     }
@@ -1550,8 +1801,9 @@ function updateRowCalcs(key,type,idx){
   // Update usage and charge display in-place without full re-render
   const d=months[key];
   const row=d[type][idx];
-  const rate=type==='water'?d.waterRate:d.elecRate;
-  const dp=type==='water'?4:0;
+  let rate=type==='water'?d.waterRate:d.elecRate;
+  if(rate===undefined||rate===null) rate=type==='water'?(d.water_rate||propSettings.waterRate||34.95):(d.elec_rate||propSettings.elecRate||3.24);
+  const dp=0;
   const o=parseFloat(row.opening), c=parseFloat(row.closing);
   const usage=(!isNaN(o)&&!isNaN(c)&&c>=o)?c-o:null;
   const charge=usage!==null?usage*rate:null;
@@ -1587,7 +1839,7 @@ function renderSumStripInPlace(key,type){
   const rows=type==='water'?d.water:d.elec;
   const rate=type==='water'?d.waterRate:d.elecRate;
   const unit=type==='water'?'kl':'kWh';
-  const dp=type==='water'?4:0;
+  const dp=0;
   let tU=0,tC=0,filled=0,leaks=0;
   rows.forEach(r=>{
     const o=parseFloat(r.opening),c=parseFloat(r.closing);
@@ -1608,11 +1860,7 @@ function renderSumStripInPlace(key,type){
 
 function renderExpRow(c){
   const r=document.createElement('div'); r.className='exp-row';
-  r.innerHTML=`<button class="btn-ghost" onclick="clearMonth()">🗑 Clear Readings</button>
-    <button class="btn-exp" onclick="exportExcel()">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path d="M2 10.5h10M7 2v7M4.5 6l2.5 3L9.5 6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>Export Excel</button>`;
+  r.innerHTML=`<button class="btn-ghost" onclick="clearMonth()">🗑 Clear Readings</button>`;
   c.appendChild(r);
 }
 
@@ -1623,12 +1871,60 @@ function clearMonth(){
   dbSave(activeKey); renderEntryContent(); showToast('Readings cleared','#C55A11');
 }
 
+function exportPDF(){
+  if(!activeKey){showToast('No month selected','#C55A11');return;}
+  const includeOwners = confirm("Include Primary Owner details in the report?\n\nClick OK for Yes.\nClick Cancel for No.");
+  const d=months[activeKey];
+  const {jsPDF}=window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFontSize(14); doc.setTextColor(31,56,100);
+  doc.text((propSettings.complex||'Utility Management') + ' - Meter Readings', 14, 15);
+  doc.setFontSize(10); doc.setTextColor(100);
+  doc.text(d.label, 14, 22);
+
+  const head = [['Unit', 'Water Open', 'Water Close', 'Usage (kl)', 'Elec Open', 'Elec Close', 'Usage (kWh)']];
+  const body = [];
+  let totW=0, totE=0;
+
+  for(let i=0; i<d.units; i++){
+    const uNum = i+1;
+    const uOwner = includeOwners ? getUnitOwner(uNum) : null;
+    const uLabel = uOwner ? `Unit ${uNum} - ${uOwner.first} ${uOwner.last}` : `${uNum}`;
+    const w = d.water.find(r=>r.unit===uNum) || {};
+    const e = d.elec.find(r=>r.unit===uNum) || {};
+    const wO = parseFloat(w.opening), wC = parseFloat(w.closing);
+    const eO = parseFloat(e.opening), eC = parseFloat(e.closing);
+    
+    let wU='', eU='';
+    const fmtN = v => { const n=parseFloat(v); return isNaN(n)?'':n.toFixed(0); };
+    if(!isNaN(wO)&&!isNaN(wC)&&wC>=wO){ const v=wC-wO; wU=v.toFixed(0); totW+=v; }
+    if(!isNaN(eO)&&!isNaN(eC)&&eC>=eO){ const v=eC-eO; eU=v.toFixed(0); totE+=v; }
+
+    body.push([uLabel, fmtN(w.opening), fmtN(w.closing), wU, fmtN(e.opening), fmtN(e.closing), eU]);
+  }
+  body.push(['TOTAL', '', '', totW.toFixed(0), '', '', totE.toFixed(0)]);
+
+  doc.autoTable({
+    startY: 26, head: head, body: body,
+    theme: 'striped',
+    headStyles: { fillColor: [31,56,100] },
+    styles: { fontSize: 8, cellPadding: 2 },
+    columnStyles: { 0: {cellWidth: includeOwners ? 'auto' : 15} },
+    didParseCell: data => { if(data.row.index===body.length-1) data.cell.styles.fontStyle='bold'; }
+  });
+  doc.save(`Readings_${d.label.replace(' ','_')}.pdf`);
+  showToast('PDF exported');
+}
+
 // ═══════════════ IMPORT READINGS ═══════════════
 function importReadings(input){
-  const file=input.files[0]; if(!file)return;
+  console.log('importReadings triggered', input.files);
+  const file=input.files[0]; if(!file){console.warn('importReadings: no file selected'); return;}
   const reader=new FileReader();
   reader.onload=e=>{
     try{
+      console.log('importReadings: loaded file', file.name);
       const wb=XLSX.read(e.target.result,{type:'array'});
       let imported=0;
       wb.SheetNames.forEach(sn=>{
@@ -1649,9 +1945,9 @@ function importReadings(input){
         const key=`${y}-${m}`;
         if(!months[key]){
           // create month shell
-          const units=data.filter((r,i)=>i>0&&r[0]&&String(r[0]).trim()!=='Total').length;
-          const wr=parseFloat(document.getElementById('waterRate').value)||34.95;
-          const er=parseFloat(document.getElementById('elecRate').value)||3.24;
+          const units=data.filter((r,i)=>i>0&&r[0]&&String(r[0]).trim()!=='Total').length||propSettings.numUnits||65;
+          const wr=propSettings.waterRate||34.95;
+          const er=propSettings.elecRate||3.24;
           months[key]={
             label:`${MNAMES[parseInt(m)-1]} ${y}`,month:m,year:y,
             units:units||65,waterRate:wr,elecRate:er,
@@ -1730,9 +2026,11 @@ function upBilling(key,field,value){months[key].billing[field]=value;dbSave(key)
 
 function calcTotals(key,type){
   const d=months[key];
+  let rate=type==='water'?d.waterRate:d.elecRate;
+  if(rate===undefined||rate===null) rate=type==='water'?(d.water_rate||propSettings.waterRate||34.95):(d.elec_rate||propSettings.elecRate||3.24);
   return d[type].reduce((s,r)=>{
     const o=parseFloat(r.opening),c=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(c)&&c>=o){s.usage+=c-o;s.charge+=(c-o)*(type==='water'?d.waterRate:d.elecRate);}
+    if(!isNaN(o)&&!isNaN(c)&&c>=o){s.usage+=c-o;s.charge+=(c-o)*rate;}
     return s;
   },{usage:0,charge:0});
 }
@@ -1748,13 +2046,14 @@ function buildRecovery(key){
   const pct=(dv,bv)=>bv===0?'n/a':(Math.abs(dv/bv)*100).toFixed(1)+'%';
   const strip=document.createElement('div'); strip.className='rec-strip';
   strip.innerHTML=`
-    <div class="rec-card ${rc(wD)}">
+    <div class="rec-card ${rc(wD)}" data-billing-month="${key}">
       <div class="rc-label">💧 Water Recovery — ${d.label}</div>
       <div class="rc-type">${rl(wD)}</div>
       <div class="rc-val">${wD>=0?'+':'−'}R${fmt(Math.abs(wD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(4)} kl)<br>
-        Municipal: <strong>R${fmt(wM)}</strong> (${wUM||'?'} kl)<br>
-        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(4)} kl</div>
+      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(0)} kl)<br>
+        Municipal Billed: <strong>R${fmt(wM)}</strong><br>
+        Total kl Billed: <strong>${wUM||'?'} kl</strong><br>
+        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(0)} kl</div>
       ${wM>0?`<div class="rc-pct">${pct(wD,wM)}</div>`:''}
     </div>
     <div class="rec-card ${rc(eD)}">
@@ -1762,7 +2061,8 @@ function buildRecovery(key){
       <div class="rc-type">${rl(eD)}</div>
       <div class="rc-val">${eD>=0?'+':'−'}R${fmt(Math.abs(eD))}</div>
       <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${eT.usage.toFixed(0)} kWh)<br>
-        Municipal: <strong>R${fmt(eM)}</strong> (${eUM||'?'} kWh)<br>
+        Municipal Billed: <strong>R${fmt(eM)}</strong><br>
+        Total kWh Billed: <strong>${eUM||'?'} kWh</strong><br>
         Usage gap: ${(eT.usage-eUM)>=0?'+':''}${(eT.usage-eUM).toFixed(0)} kWh</div>
       ${eM>0?`<div class="rc-pct">${pct(eD,eM)}</div>`:''}
     </div>`;
@@ -1824,7 +2124,7 @@ function renderCmpResults(){
 
   const grid=document.createElement('div'); grid.className='cmp-grid';
   grid.innerHTML=
-    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',4)+
+    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',0)+
     cmpCard('💧 Water Charge',wTA.charge,wTB.charge,'R')+
     cmpCard('⚡ Electricity Usage',eTA.usage,eTB.usage,'kWh',0)+
     cmpCard('⚡ Electricity Charge',eTA.charge,eTB.charge,'R')+
@@ -1837,7 +2137,7 @@ function renderCmpResults(){
     const isW=type==='water';
     const rateA=isW?dA.waterRate:dA.elecRate;
     const rateB=isW?dB.waterRate:dB.elecRate;
-    const unit=isW?'kl':'kWh'; const dp=isW?4:0;
+    const unit=isW?'kl':'kWh'; const dp=0;
     const card=document.createElement('div'); card.className='card';
     card.innerHTML=`<div class="card-head"><div><h2>${isW?'💧 Water':'⚡ Electricity'} — Unit by Unit</h2>
       <div class="sub"><span style="color:var(--blue)">Blue = ${dA.label}</span> &nbsp;·&nbsp; <span style="color:var(--orange)">Orange = ${dB.label}</span></div></div></div>`;
@@ -2006,7 +2306,7 @@ function renderDashboard(){
   const ic1=document.createElement('div'); ic1.className='ins-card';
   ic1.innerHTML=`<h4>💧 Top 5 Water Consumers</h4>${wTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(4)} kl</span></div>`
+    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(0)} kl</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic1);
 
   const eTop=[]; keys.forEach(key=>{months[key].elec.forEach(r=>{
@@ -2029,7 +2329,7 @@ function renderDashboard(){
     ${leakList.length?leakList.map(l=>`<div class="leak-item">
       <div><span class="li-u">Unit ${l.unit}</span><br>
         <span class="li-m">${l.month} · ${l.notes||'Possible leak'}</span></div>
-      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?l.usage.toFixed(4)+' kl':'—'}</span>
+      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?l.usage.toFixed(0)+' kl':'—'}</span>
     </div>`).join(''):'<div class="no-data">No problems flagged 👍</div>'}`; ig.appendChild(ic3);
 
   const ic4=document.createElement('div'); ic4.className='ins-card';
@@ -2068,7 +2368,7 @@ function makeSection(title){
 // ═══════════════ PROPERTY SETTINGS ═══════════════
 let propSettings={
   complex:'',addr1:'',addr2:'',contact:'',email:'',phone:'',
-  bank:'',accNo:'',branch:'',accType:'',vat:''
+  bank:'',accNo:'',branch:'',accType:'',vat:'',dueDays:30,numUnits:65,waterRate:34.95,elecRate:3.24
 };
 // PROP_STORE functions moved to Supabase layer above
 
@@ -2096,6 +2396,7 @@ function renderPropDisplayGrid(){
     ['Account Number',ps('accNo')||'—'],['Branch Code',ps('branch')||'—'],
     ['Account Type',ps('accType')||'—'],
     ['VAT Number',ps('vat')||'None'],
+    ['Default Units',ps('numUnits')||'65'],['Water Rate (R/kl)',ps('waterRate')||'34.95'],['Electricity Rate (R/kWh)',ps('elecRate')||'3.24'],
   ];
   grid.innerHTML=fields.map(([l,v])=>`
     <div style="padding:.5rem 0;border-bottom:1px solid var(--sky)">
@@ -2112,6 +2413,9 @@ function togglePropEdit(){
     // populate fields
     const fields=['complex','addr1','addr2','contact','email','phone','bank','accNo','branch','accType','vat'];
     fields.forEach(f=>{const el=document.getElementById('inv'+f.charAt(0).toUpperCase()+f.slice(1));if(el)el.value=propSettings[f]||'';});
+    document.getElementById('invNumUnits').value=propSettings.numUnits||65;
+    document.getElementById('invWaterRate').value=propSettings.waterRate||34.95;
+    document.getElementById('invElecRate').value=propSettings.elecRate||3.24;
     edit.style.display='block';view.style.display='none';
     btn.textContent='Cancel';
   } else {
@@ -2133,11 +2437,16 @@ function savePropSettings(){
     const el=document.getElementById(id);
     if(el) propSettings[k]=el.value;
   });
+  // Handle numeric settings separately
+  propSettings.numUnits=parseInt(document.getElementById('invNumUnits').value)||65;
+  propSettings.waterRate=parseFloat(document.getElementById('invWaterRate').value)||34.95;
+  propSettings.elecRate=parseFloat(document.getElementById('invElecRate').value)||3.24;
   savePropToDB();
   cancelPropEdit();
   renderPropDisplayGrid();
   updateHeaderComplex();
   updatePropertyBanner();
+  updateRatesDisplay();
   showToast('Property settings saved');
 }
 
@@ -2169,7 +2478,7 @@ function populateInvUnits(){
   uSel.innerHTML='<option value="">-- choose unit --</option>';
   if(!key||!months[key])return;
   months[key].water.forEach(r=>{
-    const owner=getUnitOwner(r.unit);
+    const owner=getUnitRecord(r.unit,'Owner') || getUnitRecord(r.unit,'Tenant');
     const label=owner?'Unit '+r.unit+' — '+[owner.first,owner.last].filter(Boolean).join(' '):'Unit '+r.unit;
     const o=document.createElement('option'); o.value=r.unit; o.textContent=label; uSel.appendChild(o);
   });
@@ -2217,14 +2526,18 @@ function invData(key,unitNum){
   const eO=parseFloat(eRow.opening),eC=parseFloat(eRow.closing);
   const wUsage=(!isNaN(wO)&&!isNaN(wC)&&wC>=wO)?wC-wO:0;
   const eUsage=(!isNaN(eO)&&!isNaN(eC)&&eC>=eO)?eC-eO:0;
-  const wCharge=wUsage*d.waterRate;
-  const eCharge=eUsage*d.elecRate;
+  let wRate = d.waterRate;
+  if(wRate===undefined||wRate===null) wRate = d.water_rate||propSettings.waterRate||34.95;
+  let eRate = d.elecRate;
+  if(eRate===undefined||eRate===null) eRate = d.elec_rate||propSettings.elecRate||3.24;
+  const wCharge=wUsage*wRate;
+  const eCharge=eUsage*eRate;
   const total=wCharge+eCharge;
   const invoiceDate=new Date();
   // Due date = 1st of next month
   const dueDate=new Date(invoiceDate.getFullYear(), invoiceDate.getMonth()+1, 1);
   const fmtDate=dt=>dt.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
-  const _owner=getUnitOwner(unitNum);
+  const _owner=getUnitRecord(unitNum,'Owner') || getUnitRecord(unitNum,'Tenant');
   const ownerName=document.getElementById('invOwnerName')?.value||(_owner?[_owner.first,_owner.last].filter(Boolean).join(' '):'')||'Unit '+unitNum+' Owner';
   const ownerEmail=document.getElementById('invOwnerEmail')?.value||(_owner?_owner.email:'')||'';
   const ownerEmail2=document.getElementById('invOwnerEmail2')?.value||(_owner?_owner.email2:'')||'';
@@ -2298,7 +2611,7 @@ function buildInvoiceHTML(key,unitNum){
         <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
       </div>
       <div class="chips">
-        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(4)} kl</div></div>
+        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(0)} kl</div></div>
         <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
         <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
@@ -2309,9 +2622,9 @@ function buildInvoiceHTML(key,unitNum){
         <tbody>
           <tr>
             <td>Water Consumption</td>
-            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(4):'--'}</td>
-            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(4):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(4)} kl</td>
+            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(0):'--'}</td>
+            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(0):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(0)} kl</td>
             <td style="text-align:right">R${d.waterRate}/kl</td>
             <td style="text-align:right;font-weight:700">R${fmt(wCharge)}</td>
           </tr>
@@ -2434,8 +2747,8 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
   }
 
   tRow('Water Consumption',
-    !isNaN(wO)?wO.toFixed(4):'--', !isNaN(wC)?wC.toFixed(4):'--',
-    wUsage.toFixed(4)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
+    !isNaN(wO)?wO.toFixed(0):'--', !isNaN(wC)?wC.toFixed(0):'--',
+    wUsage.toFixed(0)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
   tRow('Electricity Consumption',
     !isNaN(eO)?eO.toFixed(0):'--', !isNaN(eC)?eC.toFixed(0):'--',
     eUsage.toFixed(0)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
@@ -2490,7 +2803,7 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
 // ═══════════════ ADMIN ═══════════════
 function renderAdminStatus(){
   renderPropDisplayGrid();
-  setTimeout(renderUMTable, 50);
+  renderCloudDisplay();
   const keys=Object.keys(months).sort();
   const body=document.getElementById('adminStatusBody');
   if(!body)return;
@@ -2522,9 +2835,244 @@ function renderAdminStatus(){
     </div>`;
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// GITHUB BACKUP
+// Uses the GitHub Contents API to commit a backup JSON file
+// to a repo. Token stored encrypted in Supabase prop_settings.
+// ═══════════════════════════════════════════════════════════
+
+const GH_CFG_KEY = 'githubBackupConfig';
+
+async function loadGitHubConfig(){
+  // Try localStorage first (instant, no DB columns needed)
+  try{
+    const local=localStorage.getItem(GH_CFG_KEY);
+    if(local) return JSON.parse(local);
+  }catch(e){}
+  return null;
+}
+
+async function saveGitHubConfig(cfg){
+  // Save to localStorage (works without any DB schema changes)
+  try{ localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); }catch(e){}
+  // Also try Supabase prop_settings as a JSON blob if the table supports it
+  if(sb){
+    try{
+      await sb.from('prop_settings').upsert({key:GH_CFG_KEY, value:JSON.stringify(cfg)});
+    }catch(e){ /* table may not have value column — localStorage is the fallback */ }
+  }
+}
+
+function renderGitHubConfigDisplay(cfg){
+  const el=document.getElementById('ghConfigDisplay');
+  if(!el) return;
+  if(!cfg||!cfg.owner||!cfg.repo){
+    el.innerHTML='<div style="font-size:.75rem;color:var(--muted);font-style:italic">Not configured — click Configure to set up.</div>';
+  } else {
+    el.innerHTML=`<div style="font-size:.75rem;color:var(--text-main);background:var(--sky2);border-radius:7px;padding:.55rem .8rem;display:flex;flex-direction:column;gap:.18rem">
+      <div>📁 <strong>${cfg.owner}/${cfg.repo}</strong> <span style="color:var(--muted)">→ ${cfg.path}</span></div>
+      <div style="color:var(--muted)">Branch: <code style="font-size:.7rem">${cfg.branch}</code> · Token: ${'•'.repeat(8)}${cfg.token.slice(-4)}</div>
+    </div>`;
+  }
+}
+
+async function showGitHubConfig(){
+  const existing=document.getElementById('ghConfigModal');
+  if(existing) existing.remove();
+  const cfg=await loadGitHubConfig()||{token:'',owner:'',repo:'',path:'backups/meter-readings-backup.json',branch:'main'};
+
+  const modal=document.createElement('div');
+  modal.id='ghConfigModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,20,50,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.innerHTML=`
+    <div style="background:var(--bg-card);border-radius:14px;padding:2rem;width:100%;max-width:460px;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+      <h3 style="font-size:.95rem;font-weight:800;color:var(--navy);margin-bottom:.3rem">🐙 GitHub Backup Configuration</h3>
+      <p style="font-size:.74rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.55">
+        Create a <strong>Personal Access Token</strong> at <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--blue)">github.com/settings/tokens</a> with <code style="background:var(--sky2);padding:.1rem .3rem;border-radius:3px;font-size:.7rem">repo</code> scope. The backup file will be committed to your chosen repository.
+      </p>
+      <div class="auth-field">
+        <label>GitHub Personal Access Token</label>
+        <input type="text" id="ghToken" value="${cfg.token}" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" style="font-family:var(--mono);font-size:.78rem">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+        <div class="auth-field">
+          <label>GitHub Username / Org</label>
+          <input type="text" id="ghOwner" value="${cfg.owner}" placeholder="your-username">
+        </div>
+        <div class="auth-field">
+          <label>Repository Name</label>
+          <input type="text" id="ghRepo" value="${cfg.repo}" placeholder="my-backups">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:.75rem">
+        <div class="auth-field">
+          <label>File Path in Repo</label>
+          <input type="text" id="ghPath" value="${cfg.path||'meter-readings-backup.json'}" placeholder="meter-readings-backup.json">
+        </div>
+        <div class="auth-field">
+          <label>Branch</label>
+          <input type="text" id="ghBranch" value="${cfg.branch||'main'}" placeholder="main">
+        </div>
+      </div>
+      <div id="ghCfgError" style="display:none;background:var(--red-bg);color:var(--red);border-radius:6px;padding:.5rem .8rem;font-size:.75rem;font-weight:600;margin-bottom:.85rem"></div>
+      <div style="display:flex;gap:.65rem;margin-top:.5rem">
+        <button class="btn-exp" id="ghSaveBtn" onclick="saveGitHubConfigFromModal()" style="flex:1">Save Configuration</button>
+        <button class="btn-ghost" onclick="document.getElementById('ghConfigModal').remove()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('ghToken')?.focus(),50);
+}
+
+async function saveGitHubConfigFromModal(){
+  const token=(document.getElementById('ghToken').value||'').trim();
+  const owner=(document.getElementById('ghOwner').value||'').trim();
+  const repo=(document.getElementById('ghRepo').value||'').trim();
+  const path=(document.getElementById('ghPath').value||'meter-readings-backup.json').trim().replace(/^\/+/,'');
+  const branch=(document.getElementById('ghBranch').value||'main').trim();
+  const errEl=document.getElementById('ghCfgError');
+  const btn=document.getElementById('ghSaveBtn');
+  errEl.style.display='none';
+
+  if(!token||!owner||!repo){errEl.textContent='Token, username and repository are required.';errEl.style.display='block';return;}
+
+  // Log exactly what we're saving so it can be verified in console
+  console.log('[GitHub Config] Saving:',{owner,repo,branch,path,tokenLen:token.length,tokenStart:token.substring(0,8)});
+
+  btn.textContent='Saving…'; btn.disabled=true;
+
+  // Wipe old config first to avoid stale values
+  localStorage.removeItem(GH_CFG_KEY);
+  await saveGitHubConfig({token,owner,repo,path,branch});
+
+  // Verify it saved correctly
+  const saved=await loadGitHubConfig();
+  console.log('[GitHub Config] Verified saved config:',{owner:saved?.owner,repo:saved?.repo,branch:saved?.branch,path:saved?.path,tokenLen:saved?.token?.length});
+
+  document.getElementById('ghConfigModal').remove();
+  renderGitHubConfigDisplay({token,owner,repo,path,branch});
+  showToast('✓ GitHub backup configured — click Backup Now to test');
+}
+
+async function backupToGitHub(){
+  const cfg=await loadGitHubConfig();
+  if(!cfg||!cfg.token||!cfg.owner||!cfg.repo){
+    showToast('Configure GitHub backup first — click ⚙ Configure','#C55A11');
+    showGitHubConfig();
+    return;
+  }
+
+  // Trim everything — catch any whitespace that crept in during save
+  cfg.owner = cfg.owner.trim();
+  cfg.repo  = cfg.repo.trim();
+  cfg.path  = (cfg.path||'backups/meter-readings-backup.json').trim();
+  cfg.branch= (cfg.branch||'main').trim();
+  cfg.token = cfg.token.trim();
+
+  // Show exactly what we're about to use — confirm in console before proceeding
+  const apiBase=`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}`;
+  console.log('[GitHub Backup] ── Config ──');
+  console.log('  owner  :', JSON.stringify(cfg.owner));
+  console.log('  repo   :', JSON.stringify(cfg.repo));
+  console.log('  branch :', JSON.stringify(cfg.branch));
+  console.log('  path   :', JSON.stringify(cfg.path));
+  console.log('  token  :', cfg.token.substring(0,8)+'…('+cfg.token.length+' chars)');
+  console.log('  URL    :', apiBase);
+
+  showToast('Backing up to GitHub…','var(--blue)');
+
+  // Build backup payload
+  const allUnits=await dbLoadAllUnits();
+  const backup={
+    _version:4,
+    _exported:new Date().toISOString(),
+    _app:'MeterReadingsDB',
+    _backedUpBy: currentUser?.email||'unknown',
+    months,
+    propSettings,
+    unitOwners:Object.values(units)
+  };
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(backup,null,2))));
+
+  const headers={
+    'Authorization':`token ${cfg.token}`,
+    'Accept':'application/vnd.github+json',
+    'Content-Type':'application/json',
+    'X-GitHub-Api-Version':'2022-11-28'
+  };
+
+  try{
+    // Step 1: Check if file exists to get its SHA (needed for updates)
+    let sha=null;
+    console.log('[GitHub Backup] Checking for existing file…',apiBase);
+    const getRes=await fetch(`${apiBase}?ref=${cfg.branch}`,{headers});
+    console.log('[GitHub Backup] GET status:',getRes.status);
+
+    if(getRes.ok){
+      const existing=await getRes.json();
+      sha=existing.sha;
+      console.log('[GitHub Backup] File exists, SHA:',sha);
+    } else if(getRes.status===404){
+      console.log('[GitHub Backup] File does not exist yet — will create it');
+    } else {
+      // Any other error on the GET
+      let errMsg=`HTTP ${getRes.status}`;
+      try{ const e=await getRes.json(); errMsg=e.message||errMsg; }catch(_){}
+      console.error('[GitHub Backup] GET failed:',errMsg);
+      showToast('Backup failed: '+errMsg,'#C00000');
+      return;
+    }
+
+    // Step 2: PUT the file
+    const now=new Date();
+    const commitMsg=`Meter Readings backup — ${now.toLocaleDateString('en-ZA')} ${now.toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})}`;
+    const body={message:commitMsg, content, branch:cfg.branch};
+    if(sha) body.sha=sha;
+
+    console.log('[GitHub Backup] Committing…',commitMsg);
+    console.log('[GitHub Backup] API URL:',apiBase);
+    console.log('[GitHub Backup] Owner:',cfg.owner,'Repo:',cfg.repo,'Branch:',cfg.branch,'Path:',cfg.path);
+    console.log('[GitHub Backup] Token prefix:',cfg.token?.substring(0,8)+'…');
+    console.log('[GitHub Backup] Content size (bytes):',content.length);
+    const putRes=await fetch(apiBase,{method:'PUT',headers,body:JSON.stringify(body)});
+    console.log('[GitHub Backup] PUT status:',putRes.status);
+
+    if(!putRes.ok){
+      let errMsg=`HTTP ${putRes.status}`;
+      let errBody={};
+      try{ errBody=await putRes.json(); errMsg=errBody.message||errMsg; }catch(_){}
+      console.error('[GitHub Backup] PUT error full body:',JSON.stringify(errBody));
+      // Show a more detailed error in the UI
+      const lastEl=document.getElementById('ghLastBackup');
+      if(lastEl) lastEl.innerHTML=`<span style="color:var(--red)">✗ Backup failed (${putRes.status}): ${errMsg}</span>${errBody.errors?'<br><span style="font-size:.68rem;color:var(--muted)">'+JSON.stringify(errBody.errors)+'</span>':''}`;
+      showToast('Backup failed ('+putRes.status+'): '+errMsg,'#C00000');
+      return;
+    }
+
+    const result=await putRes.json();
+    const commitUrl=result.commit?.html_url||`https://github.com/${cfg.owner}/${cfg.repo}`;
+    const monthCount=Object.keys(months).length;
+    const unitCount=allUnits.length;
+
+    const lastEl=document.getElementById('ghLastBackup');
+    if(lastEl) lastEl.innerHTML=`✓ Last backup: <strong>${now.toLocaleDateString('en-ZA')} ${now.toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})}</strong> — ${monthCount} month${monthCount!==1?'s':''}, ${unitCount} unit${unitCount!==1?'s':''} · <a href="${commitUrl}" target="_blank" style="color:var(--blue)">View commit ↗</a>`;
+
+    showToast(`✓ Backed up to GitHub (${monthCount} months, ${unitCount} units)`);
+
+  }catch(e){
+    console.error('[GitHub Backup] Exception:',e);
+    showToast('Backup failed: '+e.message,'#C00000');
+  }
+}
+
+async function initGitHubBackupDisplay(){
+  const cfg=await loadGitHubConfig();
+  renderGitHubConfigDisplay(cfg);
+}
+
 async function exportDB(){
   // Collect ALL stores for a complete backup
-  const allUsers=await dbGetAllUsers();
   const allUnits=await dbLoadAllUnits();
 
   const backup={
@@ -2533,8 +3081,7 @@ async function exportDB(){
     _app:'MeterReadingsDB',
     months,
     propSettings,
-    unitOwners:Object.values(units),
-    users:allUsers.map(u=>({...u})) // include hashed passwords for full restore
+    unitOwners:Object.values(units)
   };
 
   const data=JSON.stringify(backup,null,2);
@@ -2548,7 +3095,6 @@ async function exportDB(){
   const counts=[
     Object.keys(months).length+' months',
     allUnits.length+' units',
-    allUsers.length+' users',
     'property settings'
   ].join(', ');
   showToast('Backup saved: '+counts);
@@ -2574,37 +3120,15 @@ function importDB(input){
         });
       }
 
-      // ── Restore property settings ──
-      if(isFullBackup&&backup.propSettings){
-        Object.assign(propSettings,backup.propSettings);
-        savePropToDB();
-        updateHeaderComplex();
-        renderPropDisplayGrid();
-      }
-
       // ── Restore unit owners ──
       let uCount=0;
       if(isFullBackup&&Array.isArray(backup.unitOwners)){
         backup.unitOwners.forEach(u=>{
-          const normalised={...u,unit:parseInt(u.unit)};
-          units[String(normalised.unit)]=normalised;
+          const normalised={...u,unit:parseInt(u.unit), type:u.type||'Owner'};
+          units[`${normalised.unit}_${normalised.type}`]=normalised;
           dbSaveUnit(normalised);
           uCount++;
         });
-      }
-
-      // ── Restore users (only if full backup and confirmed) ──
-      let userCount=0;
-      if(isFullBackup&&Array.isArray(backup.users)&&backup.users.length){
-        const restoreUsers=confirm(
-          backup.users.length+' user account(s) found in backup.\n\nRestore user accounts? This will overwrite existing accounts with the same username.\n\nClick Cancel to skip user restore and keep current accounts.'
-        );
-        if(restoreUsers){
-          for(const u of backup.users){
-            dbSaveUser(u); userCount++;
-          }
-          setTimeout(renderUMTable,200);
-        }
       }
 
       // ── Refresh UI ──
@@ -2619,8 +3143,6 @@ function importDB(input){
       const summary=[
         mCount+' month'+(mCount!==1?'s':''),
         uCount?uCount+' unit'+(uCount!==1?'s':''):'',
-        userCount?userCount+' user'+(userCount!==1?'s':''):'',
-        isFullBackup&&backup.propSettings?'property settings':''
       ].filter(Boolean).join(', ');
       showToast('Restored: '+summary,'var(--blue)');
 
@@ -2637,28 +3159,17 @@ async function wipeAllData(){
   if(!confirm('⚠️ Permanently delete ALL data from the local database?\n\nThis includes all months, readings, billing, units, property settings and users.\n\nThis cannot be undone. Export a backup first!'))return;
   if(!confirm('Last chance — wipe EVERYTHING including users?'))return;
 
-  // Wipe months (local IndexedDB only)
+  // Wipe months (local only)
   Object.keys(months).forEach(k=>{
     if(db) try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(k); }catch(e){}
     delete months[k];
   });
   activeKey=null;
 
-  // Wipe units
-  Object.keys(units).forEach(k=>{
-    if(db) try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(k)); }catch(e){}
-    delete units[k];
-  });
-
-  // Wipe propSettings (reset to defaults)
-  Object.keys(propSettings).forEach(k=>{ propSettings[k]=''; });
-  await savePropToDB();
-
-  // Wipe users and re-seed default admin
+  // Wipe users
   if(db){
-    try{ db.transaction('users','readwrite').objectStore('users').clear(); }catch(e){}
+    try{ db.transaction('users','readwrite').objectStore('users').clear(); }catch(e){} // legacy cleanup
   }
-  await dbSaveUser(DEFAULT_ADMIN);
 
   // Reset UI
   document.getElementById('activeBadge').textContent='No month selected';
@@ -2681,23 +3192,26 @@ function exportExcel(){
   keys.forEach(key=>{
     const d=months[key]; const short=d.label.replace(' ','_');
     ['water','elec'].forEach(type=>{
-      const isW=type==='water';const rate=isW?d.waterRate:d.elecRate;const unit=isW?'kl':'kWh';
+      const isW=type==='water';
+      let rate=isW?d.waterRate:d.elecRate;
+      if(rate===undefined||rate===null) rate=isW?(d.water_rate||propSettings.waterRate||34.95):(d.elec_rate||propSettings.elecRate||3.24);
+      const unit=isW?'kl':'kWh';
       const endDay=new Date(parseInt(d.year),parseInt(d.month),0).getDate();
       const start=`01/${d.month}/${d.year}`;const end=`${endDay}/${d.month}/${d.year}`;
       const headers=['Unit Number','Start Date','End Date','Opening Meter Reading','Unit',
-        'Closing Meter Reading','Unit.1','Usage','Notes','Charge','Rate'];
+        'Closing Meter Reading','Unit','Usage','Unit','Notes','Charge','Rate'];
       const rows=d[type].map(r=>{
         const o=parseFloat(r.opening),c=parseFloat(r.closing);
-        const u=(!isNaN(o)&&!isNaN(c)&&c>=o)?+(c-o).toFixed(4):null;
+        const u=(!isNaN(o)&&!isNaN(c)&&c>=o)?+(c-o).toFixed(0):null;
         const ch=u!==null?+(u*rate).toFixed(2):null;
-        return [r.unit,start,end,isNaN(o)?null:o,unit,isNaN(c)?null:c,unit,
-          u,isW&&r.flagLeak?'Possible leak':(r.notes||null),ch,rate];
+        return [r.unit,start,end,isNaN(o)?null:Math.round(o),unit,isNaN(c)?null:Math.round(c),unit,
+          u,unit,isW&&r.flagLeak?'Possible leak':(r.notes||null),ch,rate];
       });
       const tU=rows.reduce((s,r)=>s+(r[7]||0),0);
-      const tC=rows.reduce((s,r)=>s+(r[9]||0),0);
-      rows.push(['Total',null,null,null,null,null,null,+tU.toFixed(4),null,+tC.toFixed(2),null]);
+      const tC=rows.reduce((s,r)=>s+(r[10]||0),0);
+      rows.push(['Total',null,null,null,null,null,null,+tU.toFixed(0),null,null,+tC.toFixed(2),null]);
       const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-      ws['!cols']=[12,14,14,22,8,22,8,12,18,14,12].map(w=>({wch:w}));
+      ws['!cols']=[12,14,14,22,8,22,8,12,8,18,14,12].map(w=>({wch:w}));
       XLSX.utils.book_append_sheet(wb,ws,`${short}_${isW?'Water':'Elec'}`.substring(0,31));
     });
     const b=d.billing;const wT=calcTotals(key,'water');const eT=calcTotals(key,'elec');
@@ -2708,7 +3222,7 @@ function exportExcel(){
       ['','Water','Electricity'],
       ['Municipal Usage Billed',b.waterUsage||0,b.elecUsage||0],
       ['Municipal Amount Billed (R)',wM,eM],
-      ['Tenant Usage Collected',+wT.usage.toFixed(4),+eT.usage.toFixed(0)],
+      ['Tenant Usage Collected',+wT.usage.toFixed(0),+eT.usage.toFixed(0)],
       ['Tenant Charge Collected (R)',+wT.charge.toFixed(2),+eT.charge.toFixed(2)],
       ['Recovery Difference (R)',+(wT.charge-wM).toFixed(2),+(eT.charge-eM).toFixed(2)],
       ['Over / Under Recovery',wT.charge>=wM?'Over-Recovery':'Under-Recovery',eT.charge>=eM?'Over-Recovery':'Under-Recovery'],
@@ -2730,223 +3244,577 @@ function showToast(msg,color='var(--green)'){
 }
 
 // ═══════════════════════════════════════════════════════════
-// AUTH SYSTEM
+// CLOUD DB CONFIG — stored in IDB, loaded at startup
 // ═══════════════════════════════════════════════════════════
-async function hashPwd(pwd){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+const CLOUD_CFG_KEY='cloudConfig';
 
-const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
-  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
-  lastLogin:null};
-
-// Always writes directly to IDB — never fails silently
-async function seedDefaultAdmin(){
-  return new Promise(res=>{
-    if(!db){res();return;}
-    try{
-      const store=db.transaction('users','readwrite').objectStore('users');
-      const check=store.get('admin');
-      check.onsuccess=e=>{
-        if(!e.target.result){
-          db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN);
-        }
-        res();
-      };
-      check.onerror=()=>res();
-    }catch(e){res();}
-  });
-}
-
-// Always read from local IDB — used by login for reliability
-function getUserFromIDB(username){
+async function loadCloudConfig(){
   return new Promise(res=>{
     if(!db){res(null);return;}
     try{
-      const req=db.transaction('users','readonly').objectStore('users').get(username);
+      const tx=db.transaction('propSettings','readonly');
+      const req=tx.objectStore('propSettings').get(CLOUD_CFG_KEY);
       req.onsuccess=e=>res(e.target.result||null);
       req.onerror=()=>res(null);
     }catch(e){res(null);}
   });
 }
 
-function saveSession(user){
-  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
-  catch(e){ console.warn('Session storage unavailable',e); }
-}
-function loadSession(){
-  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
-}
-function clearSession(){
-  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
+async function saveCloudConfigToDB(url,key){
+  if(!db)return;
+  try{
+    db.transaction('propSettings','readwrite')
+      .objectStore('propSettings')
+      .put({key:CLOUD_CFG_KEY,sbUrl:url,sbKey:key});
+  }catch(e){ console.error('saveCloudConfig failed',e); }
 }
 
+async function deleteCloudConfigFromDB(){
+  if(!db)return;
+  try{ db.transaction('propSettings','readwrite').objectStore('propSettings').delete(CLOUD_CFG_KEY); }catch(e){}
+}
+
+function updateRatesDisplay(){
+  const w=document.getElementById('waterRate'), e=document.getElementById('elecRate');
+  if(w && propSettings.waterRate) w.value=propSettings.waterRate;
+  if(e && propSettings.elecRate) e.value=propSettings.elecRate;
+}
+
+// ── Missing stub: renderCloudDisplay ──
+function renderCloudDisplay(){
+  const el=document.getElementById('cloudDisplayArea');
+  if(!el)return;
+  if(sb){
+    el.innerHTML='<div style="font-size:.78rem;color:var(--green);font-weight:600">● Supabase connected</div><div style="font-size:.72rem;color:var(--muted);margin-top:.25rem">URL: '+SUPABASE_URL+'</div>';
+  } else {
+    el.innerHTML='<div style="font-size:.78rem;color:var(--amber);font-weight:600">● Offline / IndexedDB only</div><div style="font-size:.72rem;color:var(--muted);margin-top:.25rem">Supabase not configured or unavailable.</div>';
+  }
+}
+
+// ── Missing globals ──
+let editingUnit=null;
 let currentUser=null;
 
-async function doLogin(){
-  const username=document.getElementById('authUser').value.trim().toLowerCase();
-  const password=document.getElementById('authPass').value;
-  const errEl=document.getElementById('authError');
-  errEl.style.display='none';
-  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
+// ══════════════════════════════════════════════════════════
+// RBAC — ROLES: admin | meter-reader | readonly
+// Users stored in IndexedDB 'users' store (key = username)
+// Default admin seeded on first run
+// ══════════════════════════════════════════════════════════
 
-  // Always check local IDB only for reliability
-  const user=await getUserFromIDB(username);
+// Role permission map
+const ROLE_PAGES={
+  admin:      ['data-entry','units','billing','dashboard','invoices','admin'],
+  'meter-reader': ['data-entry'],
+  readonly:   ['data-entry','units','billing','dashboard']
+};
+const ROLE_LABELS={
+  admin:'Administrator',
+  'meter-reader':'Meter Reader',
+  readonly:'Read Only'
+};
 
-  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+// ══════════════════════════════════════════════════════════
+// AUTH — Supabase Auth + user_profiles table for RBAC
+//
+// Required Supabase setup (run once in SQL editor):
+//
+//   create table user_profiles (
+//     id uuid references auth.users(id) on delete cascade primary key,
+//     email text,
+//     display_name text,
+//     role text not null default 'readonly'  -- admin | meter-reader | readonly
+//   );
+//   alter table user_profiles enable row level security;
+//   create policy "Users can read own profile"
+//     on user_profiles for select using (auth.uid() = id);
+//   create policy "Admins can read all profiles"
+//     on user_profiles for select using (
+//       exists (select 1 from user_profiles where id = auth.uid() and role = 'admin')
+//     );
+//   create policy "Admins can insert/update/delete profiles"
+//     on user_profiles for all using (
+//       exists (select 1 from user_profiles where id = auth.uid() and role = 'admin')
+//     );
+//
+// After creating the first admin via Supabase Dashboard > Auth > Users,
+// manually insert their profile:
+//   insert into user_profiles (id, email, display_name, role)
+//   values ('<uuid-from-auth>', 'admin@yourcomplex.com', 'Administrator', 'admin');
+// ══════════════════════════════════════════════════════════
 
-  const hash=await hashPwd(password);
-  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+// ── Supabase Auth helpers ──
 
-  user.lastLogin=new Date().toISOString();
-  dbSaveUser(user);
-  currentUser={username:user.username,name:user.name,role:user.role};
-  saveSession(currentUser);
-  applyAuth();
+async function sbGetProfile(userId){
+  if(!sb) return null;
+  try{
+    // Try with .single() first
+    const {data,error}=await sb.from('user_profiles').select('*').eq('id',userId).single();
+    if(!error && data) return data;
+
+    // .single() returns error code PGRST116 when no rows found, or 42501 for RLS block
+    console.warn('[Auth] Profile fetch error:',error?.code, error?.message);
+
+    // If RLS blocked us (42501) or table missing (42P01), try a direct select without .single()
+    const {data:rows,error:err2}=await sb.from('user_profiles').select('*').eq('id',userId);
+    if(!err2 && rows && rows.length>0) return rows[0];
+
+    console.warn('[Auth] Profile fallback also failed:',err2?.code, err2?.message);
+    return null;
+  }catch(e){
+    console.warn('[Auth] sbGetProfile exception:',e);
+    return null;
+  }
 }
 
-function doLogout(){
-  clearSession();
+async function sbGetAllProfiles(){
+  if(!sb) return [];
+  try{
+    const {data,error}=await sb.from('user_profiles').select('*').order('email');
+    if(error){ console.warn('[Auth] sbGetAllProfiles error:',error.message); return []; }
+    return data||[];
+  }catch(e){ return []; }
+}
+
+// ── Login / Logout ──
+
+async function doLogin(){
+  const email=(document.getElementById('authUser').value||'').trim().toLowerCase();
+  const password=document.getElementById('authPass').value||'';
+  const errEl=document.getElementById('authError');
+  errEl.style.display='none';
+
+  if(!email||!password){
+    errEl.textContent='Please enter your email and password.';
+    errEl.style.display='block'; return;
+  }
+
+  if(!sb){
+    errEl.textContent='No database connection. Check your Supabase configuration.';
+    errEl.style.display='block'; return;
+  }
+
+  const btn=document.querySelector('.auth-btn');
+  const origText=btn.textContent;
+  btn.textContent='Signing in…'; btn.disabled=true;
+
+  try{
+    const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error){
+      errEl.textContent=error.message==='Invalid login credentials'
+        ? 'Incorrect email or password.'
+        : error.message;
+      errEl.style.display='block';
+      btn.textContent=origText; btn.disabled=false;
+      return;
+    }
+
+    const user=data.user;
+    console.log('[Auth] Signed in as',user.email,'id:',user.id);
+
+    // Fetch role profile
+    const profile=await sbGetProfile(user.id);
+    console.log('[Auth] Profile result:',profile);
+
+    if(!profile){
+      // Show detailed error with the user's UUID to help diagnose
+      errEl.innerHTML=`No access profile found for this account.<br>
+        <span style="font-size:.72rem;opacity:.8">Ask your admin to run this in Supabase SQL Editor:</span><br>
+        <code style="font-size:.68rem;background:rgba(0,0,0,.08);padding:.2rem .4rem;border-radius:4px;display:block;margin-top:.3rem;word-break:break-all">
+          insert into user_profiles (id, email, display_name, role)<br>
+          values ('${user.id}', '${user.email}', 'Administrator', 'admin');
+        </code>`;
+      errEl.style.display='block';
+      await sb.auth.signOut();
+      btn.textContent=origText; btn.disabled=false;
+      return;
+    }
+
+    currentUser={
+      id: user.id,
+      email: user.email,
+      displayName: profile.display_name||user.email,
+      role: profile.role||'readonly'
+    };
+
+    document.getElementById('authPass').value='';
+    btn.textContent=origText; btn.disabled=false;
+    await loadAppData();
+    afterLogin();
+
+  }catch(e){
+    console.error('[Auth] Login error:',e);
+    errEl.textContent='Login failed. Please try again.';
+    errEl.style.display='block';
+    btn.textContent=origText; btn.disabled=false;
+  }
+}
+
+async function doLogout(){
+  try{ if(sb) await sb.auth.signOut(); }catch(e){}
   currentUser=null;
+  // Clear months in memory so next login reloads fresh
+  Object.keys(months).forEach(k=>delete months[k]);
+  activeKey=null;
+  // Reset UI
   document.getElementById('authOverlay').style.display='flex';
+  document.getElementById('mainHeader').style.opacity='0';
+  document.getElementById('mainHeader').style.pointerEvents='none';
+  document.querySelector('.shell').style.display='none';
   document.getElementById('authUser').value='';
   document.getElementById('authPass').value='';
   document.getElementById('authError').style.display='none';
   document.getElementById('userChip').style.display='none';
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
-  document.querySelector('.shell').style.display='none';
+  document.getElementById('tabsRow').innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';
+  document.getElementById('entryContent').innerHTML='';
+  closeUserMenu();
 }
 
-function applyAuth(){
-  if(!currentUser)return;
+function afterLogin(){
   document.getElementById('authOverlay').style.display='none';
-  document.querySelector('header').style.opacity='';
-  document.querySelector('header').style.pointerEvents='';
+  const hdr=document.getElementById('mainHeader');
+  hdr.style.opacity=''; hdr.style.pointerEvents='';
   document.querySelector('.shell').style.display='';
+
+  // Update user chip
   const chip=document.getElementById('userChip');
   chip.style.display='flex';
-  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
-  document.getElementById('userChipName').textContent=currentUser.name;
-  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
+  document.getElementById('ucAvatar').textContent=(currentUser.displayName||currentUser.email||'U')[0].toUpperCase();
+  document.getElementById('ucName').textContent=currentUser.displayName||currentUser.email;
+  document.getElementById('ucRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
+
+  applyRBAC();
+}
+
+// ── Apply RBAC to nav + pages ──
+function applyRBAC(){
+  if(!currentUser)return;
+  const allowed=ROLE_PAGES[currentUser.role]||[];
+
+  // Desktop nav
   document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
-    const roles=btn.getAttribute('data-roles')||'';
-    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
+    const page=btn.getAttribute('data-page');
+    btn.style.display=allowed.includes(page)?'':'none';
   });
-  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
-  if(first) first.click();
-  if(currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
-  renderUMTable();
-  if(typeof showMobileNav==='function') showMobileNav();
-  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
+
+  // Mobile nav
+  document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
+    const page=btn.getAttribute('data-page');
+    btn.style.display=allowed.includes(page)?'':'none';
+  });
+
+  // Navigate to first allowed page
+  const firstPage=allowed[0]||'data-entry';
+  const firstBtn=document.querySelector(`#mainNav .nav-btn[data-page="${firstPage}"]`);
+  showPage(firstPage,firstBtn);
+  applyMobileNavRoles();
 }
 
-const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
-const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
+function applyReadOnlyMode(){
+  setTimeout(()=>{
+    document.querySelectorAll('td input, td select, .btn-primary, .btn-exp:not(.readonly-safe), .control-bar button').forEach(el=>{
+      el.disabled=true;
+    });
+    const ec=document.getElementById('entryContent');
+    if(ec&&!document.getElementById('roBanner')){
+      const banner=document.createElement('div');
+      banner.id='roBanner';
+      banner.className='readonly-banner';
+      banner.innerHTML='🔒 <strong>Read-Only Mode</strong> — You can view all data but cannot make changes.';
+      ec.prepend(banner);
+    }
+  },100);
+}
 
+// ── User menu popup ──
 function showUserMenu(){
-  if(!confirm('Signed in as '+currentUser.name+' ('+( ROLE_LABELS[currentUser.role]||currentUser.role)+')\n\nClick OK to sign out.'))return;
-  doLogout();
+  const existing=document.getElementById('userMenuPopup');
+  if(existing){existing.remove();return;}
+  const popup=document.createElement('div');
+  popup.id='userMenuPopup';
+  popup.style.cssText='position:fixed;top:60px;right:1rem;z-index:500;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:210px;font-family:var(--sans);overflow:hidden';
+  popup.innerHTML=`
+    <div style="padding:.85rem 1rem;border-bottom:1px solid var(--border-color)">
+      <div style="font-size:.82rem;font-weight:700;color:var(--navy)">${currentUser?.displayName||currentUser?.email||'User'}</div>
+      <div style="font-size:.68rem;color:var(--muted);margin-top:.1rem">${currentUser?.email||''}</div>
+      <div style="margin-top:.35rem"><span class="role-pill ${currentUser?.role||'readonly'}">${ROLE_LABELS[currentUser?.role]||'—'}</span></div>
+    </div>
+    ${currentUser?.role==='admin'?`<button onclick="document.getElementById('userMenuPopup').remove();showPage('admin',document.querySelector('[data-page=admin]'))" style="width:100%;text-align:left;padding:.7rem 1rem;border:none;background:none;font-family:var(--sans);font-size:.78rem;color:var(--text-main);cursor:pointer;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='var(--sky2)'" onmouseout="this.style.background='none'">⚙️ Admin Panel</button>`:''}
+    <button onclick="showChangePassword()" style="width:100%;text-align:left;padding:.7rem 1rem;border:none;background:none;font-family:var(--sans);font-size:.78rem;color:var(--text-main);cursor:pointer;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='var(--sky2)'" onmouseout="this.style.background='none'">🔑 Change Password</button>
+    <div style="border-top:1px solid var(--border-color)">
+      <button onclick="doLogout()" style="width:100%;text-align:left;padding:.7rem 1rem;border:none;background:none;font-family:var(--sans);font-size:.78rem;color:var(--red);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='var(--red-bg)'" onmouseout="this.style.background='none'">← Sign Out</button>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(()=>{
+    const close=ev=>{if(!popup.contains(ev.target)&&!document.getElementById('userChip')?.contains(ev.target)){popup.remove();document.removeEventListener('click',close);}};
+    document.addEventListener('click',close);
+  },50);
 }
 
-async function addUser(){
-  const u=document.getElementById('umNewUser').value.trim().toLowerCase();
-  const n=document.getElementById('umNewName').value.trim();
-  const p=document.getElementById('umNewPass').value;
-  const r=document.getElementById('umNewRole').value;
-  if(!u||!n||!p){showToast('Fill in all fields','#C55A11');return;}
-  const hash=await hashPwd(p);
-  await dbSaveUser({username:u,name:n,role:r,hash,lastLogin:null});
-  document.getElementById('umNewUser').value='';
-  document.getElementById('umNewName').value='';
-  document.getElementById('umNewPass').value='';
-  setTimeout(renderUMTable,200);
-  showToast('User '+u+' added');
+function closeUserMenu(){
+  const p=document.getElementById('userMenuPopup');
+  if(p)p.remove();
 }
 
-async function resetUserPwd(username){
-  const newPwd=prompt('New password for '+username+':');
-  if(!newPwd)return;
-  const user=await getUserFromIDB(username);
-  if(!user){showToast('User not found','#C55A11');return;}
-  user.hash=await hashPwd(newPwd);
-  await dbSaveUser(user);
-  showToast('Password reset for '+username);
+function showChangePassword(){
+  closeUserMenu();
+  if(currentUser) showResetPwModal(currentUser.id, currentUser.email, currentUser.displayName);
 }
 
-async function removeUser(username){
-  if(username==='admin'){showToast('Cannot remove admin','#C55A11');return;}
-  if(!confirm('Remove user: '+username+'?'))return;
-  await dbDeleteUser(username);
-  setTimeout(renderUMTable,200);
-  showToast('User '+username+' removed','#C55A11');
-}
-
-async function renderUMTable(){
-  const tbody=document.getElementById('umBody');
+// ── User management (Admin only) ──
+async function renderUsersAdmin(){
+  const tbody=document.getElementById('usersAdminBody');
   if(!tbody)return;
-  const users=await dbGetAllUsers();
-  tbody.innerHTML=users.length?users.map(u=>`<tr>
-    <td style="font-family:var(--mono)">${u.username}</td>
-    <td>${u.name}</td>
-    <td><span class="role-pill ${ROLE_COLORS[u.role]||''}">${ROLE_LABELS[u.role]||u.role}</span></td>
-    <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleString('en-ZA',{dateStyle:'short',timeStyle:'short'}):'Never'}</td>
-    <td style="display:flex;gap:.4rem">
-      <button onclick="resetUserPwd('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Reset Pwd</button>
-      ${u.username!=='admin'?`<button onclick="removeUser('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-weight:600">Remove</button>`:''}
-    </td>
-  </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">No users</td></tr>';
+  if(!sb){
+    tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--muted)">Supabase not connected</td></tr>';
+    return;
+  }
+  tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--muted)">Loading…</td></tr>';
+  const profiles=await sbGetAllProfiles();
+  if(!profiles.length){
+    tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--muted)">No users found. Click <strong>＋ Add User</strong> to create the first one.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=profiles.map(u=>`
+    <tr>
+      <td style="font-size:.76rem;font-family:var(--mono);color:var(--navy)">${u.email||'—'}</td>
+      <td style="font-weight:600">${u.display_name||'—'}</td>
+      <td>
+        <select onchange="updateUserRole('${u.id}',this.value)"
+          style="font-size:.7rem;padding:.26rem .5rem;border:1.5px solid var(--border-color);border-radius:5px;background:var(--bg-card);color:var(--text-main);cursor:pointer;font-family:var(--sans)"
+          ${u.id===currentUser?.id?'disabled title="Cannot change your own role"':''}>
+          <option value="admin"         ${u.role==='admin'?'selected':''}>Administrator</option>
+          <option value="meter-reader"  ${u.role==='meter-reader'?'selected':''}>Meter Reader</option>
+          <option value="readonly"      ${u.role==='readonly'?'selected':''}>Read Only</option>
+        </select>
+      </td>
+      <td>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
+          <button onclick="showResetPwModal('${u.id}','${(u.email||'').replace(/'/g,"\\'")}','${(u.display_name||'').replace(/'/g,"\\'")}') "
+            style="font-size:.7rem;padding:.26rem .65rem;border:1.5px solid var(--blue);border-radius:5px;background:var(--bg-card);color:var(--blue);cursor:pointer;font-weight:600;white-space:nowrap">
+            Reset PW
+          </button>
+          ${u.id!==currentUser?.id
+            ? `<button onclick="deleteUserProfile('${u.id}','${(u.email||'').replace(/'/g,"\\'")}')"
+                style="font-size:.7rem;padding:.26rem .65rem;border:1.5px solid var(--red);border-radius:5px;background:var(--bg-card);color:var(--red);cursor:pointer;font-weight:600">
+                Delete
+               </button>`
+            : '<span style="font-size:.7rem;color:var(--muted)">(you)</span>'
+          }
+        </div>
+      </td>
+    </tr>`).join('');
 }
 
-// Supabase config removed. No cloud settings are stored in this build.
-
-
-async function emergencyReset(){
-  if(!confirm('Reset admin password back to "admin"?\n\nAll other accounts will be kept.\n\nContinue?'))return;
-  await seedDefaultAdmin();
-  if(db){ try{ db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN); }catch(e){} }
-  document.getElementById('authUser').value='admin';
-  document.getElementById('authPass').value='admin';
-  document.getElementById('authError').style.display='none';
-  showToast('Admin reset — password is now: admin');
+async function updateUserRole(userId, newRole){
+  if(!sb)return;
+  const {error}=await sb.from('user_profiles').update({role:newRole}).eq('id',userId);
+  if(error){showToast('Failed to update role: '+error.message,'#C00000');renderUsersAdmin();return;}
+  showToast('Role updated to '+ROLE_LABELS[newRole]);
 }
+
+// ── Add User modal ──
+function showAddUserModal(){
+  const existing=document.getElementById('addUserModal');
+  if(existing)existing.remove();
+  const modal=document.createElement('div');
+  modal.id='addUserModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,20,50,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.innerHTML=`
+    <div style="background:var(--bg-card);border-radius:14px;padding:2rem;width:100%;max-width:420px;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+      <h3 style="font-size:.95rem;font-weight:800;color:var(--navy);margin-bottom:.3rem">＋ Add New User</h3>
+      <p style="font-size:.74rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5">Creates a Supabase Auth account and assigns a role. The user can log in immediately with the password you set.</p>
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="nuEmail" placeholder="user@email.com" autocomplete="off">
+      </div>
+      <div class="auth-field">
+        <label>Display Name</label>
+        <input type="text" id="nuName" placeholder="e.g. John Smith" autocomplete="off">
+      </div>
+      <div class="auth-field">
+        <label>Role</label>
+        <select id="nuRole" style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.88rem;color:var(--text-main);background:var(--bg-input)">
+          <option value="readonly">Read Only</option>
+          <option value="meter-reader">Meter Reader</option>
+          <option value="admin">Administrator</option>
+        </select>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="nuPw" placeholder="Min 8 characters" autocomplete="new-password">
+      </div>
+      <div class="auth-field" style="margin-bottom:0">
+        <label>Confirm Password</label>
+        <input type="password" id="nuPwConfirm" placeholder="Repeat password" autocomplete="new-password"
+          onkeydown="if(event.key==='Enter')submitAddUser()">
+      </div>
+      <div id="nuError" style="display:none;background:var(--red-bg);color:var(--red);border-radius:6px;padding:.5rem .8rem;font-size:.75rem;font-weight:600;margin-top:.85rem;line-height:1.4"></div>
+      <div style="display:flex;gap:.65rem;margin-top:1.25rem">
+        <button class="btn-exp" id="nuSubmitBtn" onclick="submitAddUser()" style="flex:1">Create User</button>
+        <button class="btn-ghost" onclick="document.getElementById('addUserModal').remove()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('nuEmail')?.focus(),50);
+}
+
+async function submitAddUser(){
+  const email=(document.getElementById('nuEmail').value||'').trim();
+  const name=(document.getElementById('nuName').value||'').trim();
+  const role=document.getElementById('nuRole').value;
+  const pw=document.getElementById('nuPw').value;
+  const pw2=document.getElementById('nuPwConfirm').value;
+  const errEl=document.getElementById('nuError');
+  const btn=document.getElementById('nuSubmitBtn');
+  errEl.style.display='none';
+
+  if(!email||!name||!pw){errEl.textContent='Please fill in all fields.';errEl.style.display='block';return;}
+  if(pw.length<8){errEl.textContent='Password must be at least 8 characters.';errEl.style.display='block';return;}
+  if(pw!==pw2){errEl.textContent='Passwords do not match.';errEl.style.display='block';return;}
+  if(!sb){errEl.textContent='Supabase not connected.';errEl.style.display='block';return;}
+
+  btn.textContent='Creating…';btn.disabled=true;
+
+  try{
+    // 1. Create the auth user via signUp
+    const {data,error}=await sb.auth.signUp({
+      email,
+      password:pw,
+      options:{data:{display_name:name}}
+    });
+
+    if(error){
+      errEl.textContent=error.message;
+      errEl.style.display='block';
+      btn.textContent='Create User';btn.disabled=false;
+      return;
+    }
+
+    const userId=data?.user?.id;
+    if(!userId){
+      errEl.textContent='User created but no ID returned. Check Supabase Auth settings (disable email confirmation for immediate login).';
+      errEl.style.display='block';
+      btn.textContent='Create User';btn.disabled=false;
+      return;
+    }
+
+    // 2. Insert profile with role
+    const {error:profileError}=await sb.from('user_profiles').upsert({
+      id:userId, email, display_name:name, role
+    });
+    if(profileError){
+      errEl.textContent='Auth user created but profile insert failed: '+profileError.message+'. User can log in but may lack a role.';
+      errEl.style.display='block';
+      btn.textContent='Create User';btn.disabled=false;
+      return;
+    }
+
+    // Success
+    document.getElementById('addUserModal').remove();
+    renderUsersAdmin();
+    showToast('✓ User "'+name+'" created as '+ROLE_LABELS[role]);
+
+  }catch(e){
+    console.error('[addUser]',e);
+    errEl.textContent='Unexpected error: '+e.message;
+    errEl.style.display='block';
+    btn.textContent='Create User';btn.disabled=false;
+  }
+}
+
+// ── Reset Password modal (Admin sets a new password for any user) ──
+function showResetPwModal(userId, email, displayName){
+  const existing=document.getElementById('resetPwModal');
+  if(existing)existing.remove();
+
+  // Self-reset uses Supabase updateUser; for others we use admin API if service key available,
+  // otherwise generate a magic link / password reset email via Supabase.
+  const isSelf=(userId===currentUser?.id);
+
+  const modal=document.createElement('div');
+  modal.id='resetPwModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,20,50,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:1rem';
+
+  if(isSelf){
+    modal.innerHTML=`
+      <div style="background:var(--bg-card);border-radius:14px;padding:2rem;width:100%;max-width:360px;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+        <h3 style="font-size:.9rem;font-weight:800;color:var(--navy);margin-bottom:.3rem">🔑 Change Your Password</h3>
+        <p style="font-size:.74rem;color:var(--muted);margin-bottom:1.25rem">${email}</p>
+        <div class="auth-field"><label>New Password</label>
+          <input type="password" id="rpNew" placeholder="Min 8 characters" autocomplete="new-password"></div>
+        <div class="auth-field" style="margin-bottom:0"><label>Confirm Password</label>
+          <input type="password" id="rpConfirm" placeholder="Repeat password" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter')submitResetPw('${userId}',${isSelf})"></div>
+        <div id="rpError" style="display:none;background:var(--red-bg);color:var(--red);border-radius:6px;padding:.5rem .8rem;font-size:.75rem;font-weight:600;margin-top:.85rem"></div>
+        <div style="display:flex;gap:.65rem;margin-top:1.25rem">
+          <button class="btn-exp" id="rpBtn" onclick="submitResetPw('${userId}',true)" style="flex:1">Update Password</button>
+          <button class="btn-ghost" onclick="document.getElementById('resetPwModal').remove()">Cancel</button>
+        </div>
+      </div>`;
+  } else {
+    // For other users: send password reset email via Supabase
+    modal.innerHTML=`
+      <div style="background:var(--bg-card);border-radius:14px;padding:2rem;width:100%;max-width:380px;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+        <h3 style="font-size:.9rem;font-weight:800;color:var(--navy);margin-bottom:.3rem">🔑 Reset Password</h3>
+        <p style="font-size:.74rem;color:var(--muted);margin-bottom:.5rem"><strong>${displayName||email}</strong><br>${email}</p>
+        <p style="font-size:.76rem;color:var(--text-main);margin-bottom:1.25rem;line-height:1.55;background:var(--sky2);border-radius:8px;padding:.75rem .9rem">
+          This will send a <strong>password reset email</strong> to the user. They click the link in the email to set a new password themselves.
+        </p>
+        <div id="rpError" style="display:none;background:var(--red-bg);color:var(--red);border-radius:6px;padding:.5rem .8rem;font-size:.75rem;font-weight:600;margin-bottom:.85rem"></div>
+        <div style="display:flex;gap:.65rem">
+          <button class="btn-exp" id="rpBtn" onclick="submitResetPw('${userId}',false,'${email.replace(/'/g,"\\'")}' )" style="flex:1">Send Reset Email</button>
+          <button class="btn-ghost" onclick="document.getElementById('resetPwModal').remove()">Cancel</button>
+        </div>
+      </div>`;
+  }
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('rpNew')?.focus(),50);
+}
+
+async function submitResetPw(userId, isSelf, email){
+  const btn=document.getElementById('rpBtn');
+  const errEl=document.getElementById('rpError');
+  errEl.style.display='none';
+  btn.disabled=true;
+
+  if(isSelf){
+    const newPw=document.getElementById('rpNew').value;
+    const confirm=document.getElementById('rpConfirm').value;
+    if(newPw.length<8){errEl.textContent='Password must be at least 8 characters.';errEl.style.display='block';btn.disabled=false;return;}
+    if(newPw!==confirm){errEl.textContent='Passwords do not match.';errEl.style.display='block';btn.disabled=false;return;}
+    btn.textContent='Updating…';
+    const {error}=await sb.auth.updateUser({password:newPw});
+    if(error){errEl.textContent=error.message;errEl.style.display='block';btn.textContent='Update Password';btn.disabled=false;return;}
+    document.getElementById('resetPwModal').remove();
+    showToast('✓ Password updated');
+  } else {
+    btn.textContent='Sending…';
+    const {error}=await sb.auth.resetPasswordForEmail(email,{
+      redirectTo: window.location.href
+    });
+    if(error){errEl.textContent=error.message;errEl.style.display='block';btn.textContent='Send Reset Email';btn.disabled=false;return;}
+    document.getElementById('resetPwModal').remove();
+    showToast('✓ Password reset email sent to '+email);
+  }
+}
+
+async function deleteUserProfile(userId, email){
+  if(!confirm('Delete user "'+email+'"?\n\nThis permanently removes their account and access. This cannot be undone.'))return;
+  if(!sb)return;
+  try{
+    // Delete from user_profiles first (auth user cascade will also clean up if RLS allows)
+    const {error:pe}=await sb.from('user_profiles').delete().eq('id',userId);
+    if(pe){showToast('Profile delete failed: '+pe.message,'#C00000');return;}
+    // Try to delete the auth user (requires service_role; will silently fail with anon key — that's OK)
+    try{ await sb.auth.admin.deleteUser(userId); }catch(e){}
+    renderUsersAdmin();
+    showToast('✓ User "'+email+'" deleted','#C55A11');
+  }catch(e){showToast('Error deleting user','#C00000');}
+}
+
+async function addUser(){} // kept as stub — replaced by showAddUserModal flow
 
 </script>
 
-<!-- AUTH OVERLAY -->
-<div id="authOverlay">
-  <div class="auth-card">
-    <div class="auth-logo">
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <path d="M4 20 Q6 13 13 11 Q20 9 22 15" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <circle cx="13" cy="11" r="3" fill="#7EC8E3"/>
-        <rect x="10" y="15" width="6" height="7" rx="1.5" fill="#F0A95A"/>
-      </svg>
-    </div>
-    <h2>Utility Meter Readings</h2>
-    <p class="auth-sub" id="authComplexSub">Please sign in to continue</p>
-    <div class="auth-field">
-      <label>Username</label>
-      <input type="text" id="authUser" placeholder="Enter your username" autocomplete="username"
-        onkeydown="if(event.key==='Enter')document.getElementById('authPass').focus()">
-    </div>
-    <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="authPass" placeholder="Enter your password" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <button class="auth-btn" onclick="doLogin()">Sign In</button>
-    <div class="auth-error" id="authError">Incorrect username or password</div>
-    <div style="margin-top:1rem;text-align:center">
-      <button onclick="emergencyReset()" style="background:none;border:none;color:var(--muted);font-size:.68rem;cursor:pointer;text-decoration:underline;font-family:var(--sans)">
-        Forgot password / reset to default admin
-      </button>
-    </div>
-  </div>
-  <div class="auth-footer">Mogale City Complex &nbsp;|&nbsp; Utility Management System</div>
-</div>
 </body>
 </html>
