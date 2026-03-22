@@ -2843,24 +2843,25 @@ function renderAdminStatus(){
 // ═══════════════════════════════════════════════════════════
 
 const GH_CFG_KEY = 'githubBackupConfig';
+let _ghCfgCache = null; // in-memory fallback if localStorage blocked
 
 async function loadGitHubConfig(){
-  // Try localStorage first (instant, no DB columns needed)
+  // Try in-memory cache first
+  if(_ghCfgCache) return _ghCfgCache;
+  // Try localStorage
   try{
     const local=localStorage.getItem(GH_CFG_KEY);
-    if(local) return JSON.parse(local);
+    if(local){ _ghCfgCache=JSON.parse(local); return _ghCfgCache; }
   }catch(e){}
   return null;
 }
 
 async function saveGitHubConfig(cfg){
-  // Save to localStorage (works without any DB schema changes)
-  try{ localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); }catch(e){}
-  // Also try Supabase prop_settings as a JSON blob if the table supports it
-  if(sb){
-    try{
-      await sb.from('prop_settings').upsert({key:GH_CFG_KEY, value:JSON.stringify(cfg)});
-    }catch(e){ /* table may not have value column — localStorage is the fallback */ }
+  // Always keep in memory
+  _ghCfgCache = cfg;
+  // Try localStorage (may be blocked by Edge Tracking Prevention)
+  try{ localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); }catch(e){
+    console.warn('[GitHub Config] localStorage blocked, using memory only. Config will be lost on page refresh.');
   }
 }
 
@@ -3589,7 +3590,7 @@ async function renderUsersAdmin(){
       </td>
       <td>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
-          <button onclick="showResetPwModal('${u.id}','${(u.email||'').replace(/'/g,"\\'")}','${(u.display_name||'').replace(/'/g,"\\'")}') "
+          <button onclick="showResetPwModal('${u.id}','${(u.email||'').replace(/'/g,"\\'")}','${(u.display_name||'').replace(/'/g,"\\'")}')"
             style="font-size:.7rem;padding:.26rem .65rem;border:1.5px solid var(--blue);border-radius:5px;background:var(--bg-card);color:var(--blue);cursor:pointer;font-weight:600;white-space:nowrap">
             Reset PW
           </button>
