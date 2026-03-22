@@ -1235,7 +1235,7 @@ function openDB(){
     req.onupgradeneeded=e=>{
       const d=e.target.result;
       const stores={
-        [STORE]:{keyPath:'key'},
+        'months':{keyPath:'key'},
         propSettings:{keyPath:'key'},
         unitOwners:{keyPath:['unit','type']}
       };
