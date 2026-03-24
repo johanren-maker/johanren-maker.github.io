@@ -411,22 +411,6 @@ input[type=file]{display:none}
 .auth-btn:hover{background:var(--blue);transform:translateY(-1px)}
 .auth-error{background:var(--red-bg);color:var(--red);border-radius:6px;padding:.55rem .85rem;
   font-size:.78rem;font-weight:600;margin-top:.75rem;text-align:center;display:none}
-.auth-test{margin-top:.9rem;border:1.5px solid var(--border);border-radius:8px;background:var(--sky2)}
-.auth-test summary{cursor:pointer;list-style:none;padding:.58rem .75rem;font-size:.68rem;
-  font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)}
-.auth-test summary::-webkit-details-marker{display:none}
-.auth-test[open] summary{border-bottom:1px solid var(--border)}
-.auth-test-body{padding:.7rem .75rem .75rem}
-.auth-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
-.auth-mini-grid input,.auth-mini-grid select{width:100%;padding:.45rem .58rem;border:1.5px solid var(--border);
-  border-radius:6px;font-family:var(--sans);font-size:.78rem;background:#fff;color:var(--text)}
-.auth-mini-grid input:focus,.auth-mini-grid select:focus{outline:none;border-color:var(--blue)}
-.auth-mini-btn{margin-top:.55rem;width:100%;padding:.52rem;background:#2E75B6;color:#fff;border:none;
-  border-radius:7px;font-family:var(--sans);font-weight:700;font-size:.78rem;cursor:pointer}
-.auth-mini-btn:hover{background:#1F62A0}
-.auth-mini-msg{display:none;margin-top:.5rem;font-size:.72rem;border-radius:6px;padding:.45rem .55rem}
-.auth-mini-msg.err{background:var(--red-bg);color:var(--red)}
-.auth-mini-msg.ok{background:var(--green-bg);color:var(--green)}
 .auth-footer{color:rgba(255,255,255,.4);font-size:.68rem;margin-top:1.5rem;text-align:center}
 /* USER CHIP in header */
 .user-chip{display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);
@@ -621,6 +605,7 @@ input[type=file]{display:none}
     <div class="tw"><table class="um-table" id="unitsTable">
       <thead><tr>
         <th style="width:60px">Unit #</th>
+        <th style="width:55px">Type</th>
         <th style="width:90px">Account #</th>
         <th style="width:100px">Water Meter #</th>
         <th style="width:100px">Elec Meter #</th>
@@ -638,9 +623,18 @@ input[type=file]{display:none}
 
   <div class="admin-card">
     <h3 id="unitFormTitle" style="margin-bottom:1rem">Add / Edit Unit</h3>
-    <div style="margin-bottom:.75rem">
-      <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Unit Number</label>
-      <input type="number" id="uoUnit" placeholder="e.g. 1" min="1" style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:120px">
+    <div style="margin-bottom:.75rem;display:flex;gap:1.5rem;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Unit Number</label>
+        <input type="number" id="uoUnit" placeholder="e.g. 1" min="1" style="margin-top:.25rem;padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--mono);font-size:.83rem;width:120px">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Record Type</label>
+        <select id="uoRecordType" style="padding:.42rem .68rem;border:1.5px solid var(--border);border-radius:7px;font-family:var(--sans);font-size:.83rem;background:#fff;cursor:pointer">
+          <option value="owner">Owner</option>
+          <option value="tenant">Tenant</option>
+        </select>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem">
       <div style="background:var(--sky2);border-radius:8px;padding:1rem">
@@ -2517,11 +2511,21 @@ async function restoreGithubBackup(){
     oldUnitKeys.forEach(k=>dbDeleteUnit(parseInt(k,10)));
     units={};
     if(Array.isArray(payload.units)){
-      payload.units.forEach(u=>{if(u&&u.unit) units[String(u.unit)]=u;});
+      // Legacy flat array format
+      payload.units.forEach(u=>{if(u&&u.unit){const key=String(u.unit);if(!units[key])units[key]={};units[key][u.recordType||'owner']={...u,recordType:u.recordType||'owner'};}});
     }else{
-      Object.entries(payload.units).forEach(([k,v])=>{if(v) units[String(k)]=v;});
+      Object.entries(payload.units).forEach(([k,v])=>{
+        if(!v) return;
+        if(v.owner||v.tenant){
+          // New nested format
+          units[String(k)]=v;
+        } else if(v.unit!==undefined){
+          // Old flat single-record format
+          units[String(k)]={owner:{...v,recordType:'owner'}};
+        }
+      });
     }
-    Object.values(units).forEach(u=>dbSaveUnit(u));
+    Object.values(units).forEach(ud=>Object.values(ud).forEach(u=>dbSaveUnit(u)));
 
     propSettings={...propSettings,...payload.propSettings};
     savePropToDB();
@@ -2811,54 +2815,6 @@ async function doLogin(){
   applyAuth();
 }
 
-async function createTestUserFromLogin(){
-  const msgEl=document.getElementById('authCreateMsg');
-  const userEl=document.getElementById('authCreateUser');
-  const nameEl=document.getElementById('authCreateName');
-  const passEl=document.getElementById('authCreatePass');
-  const roleEl=document.getElementById('authCreateRole');
-
-  const username=normalizeUsername(userEl?.value);
-  const password=passEl?.value||'';
-  const name=(nameEl?.value||'').trim()||username;
-  const role=(roleEl?.value||'readonly').trim();
-  const setMsg=(text,isOk)=>{
-    if(!msgEl)return;
-    msgEl.textContent=text;
-    msgEl.className='auth-mini-msg '+(isOk?'ok':'err');
-    msgEl.style.display='block';
-  };
-
-  if(!username||!password){
-    setMsg('Enter at least a username and password.',false);
-    return;
-  }
-
-  let users=[];
-  try{
-    users=await dbGetAllUsers();
-  }catch{
-    setMsg('User database unavailable. Configure Supabase first.',false);
-    return;
-  }
-  if(users.find(u=>normalizeUsername(u.username)===username)){
-    setMsg('That username already exists.',false);
-    return;
-  }
-
-  const hash=await hashPwd(password);
-  await dbSaveUser({username,name,role,hash,lastLogin:null});
-
-  if(userEl) userEl.value='';
-  if(nameEl) nameEl.value='';
-  if(passEl) passEl.value='';
-  if(roleEl) roleEl.value='readonly';
-
-  document.getElementById('authUser').value=username;
-  document.getElementById('authPass').value=password;
-  setMsg('Test user created and synced to app_users.',true);
-}
-
 function doLogout(){
   clearSession();
   currentUser=null;
@@ -3059,6 +3015,7 @@ function dbSaveUnit(u){
   if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
   const rec={
     unit:parseInt(u.unit),
+    record_type:u.recordType||'owner',
     first:u.first||'',
     last:u.last||'',
     email:u.email||'',
@@ -3079,6 +3036,11 @@ function dbDeleteUnit(unitNum){
   if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
   sbFetch('unit_owners',`?unit=eq.${encodeURIComponent(unitNum)}`,'DELETE').catch(()=>showToast('Failed to delete unit owner','#C00000'));
   scheduleGithubAutoBackup('unit-delete');
+function dbDeleteUnitRecord(unitNum, recordType){
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
+  sbFetch('unit_owners',`?unit=eq.${encodeURIComponent(unitNum)}&record_type=eq.${encodeURIComponent(recordType)}`,'DELETE').catch(()=>showToast('Failed to delete unit record','#C00000'));
+  scheduleGithubAutoBackup('unit-delete');
+}
 }
 function dbLoadAllUnits(){
   return sbFetch('unit_owners','?select=*&order=unit.asc').then(rows=>rows||[]);
@@ -3142,9 +3104,14 @@ async function syncExtraItemsToDB(){
 
 async function loadUnitsFromDB(){
   const saved=await dbLoadAllUnits();
+  Object.keys(units).forEach(k=>delete units[k]);
   saved.forEach(u=>{
-    units[String(u.unit)]={
+    const key=String(u.unit);
+    if(!units[key]) units[key]={};
+    const rtype=u.record_type||'owner';
+    units[key][rtype]={
       ...u,
+      recordType:rtype,
       accountNo:u.accountNo||u.account_no||'',
       waterMeterNo:u.waterMeterNo||u.water_meter_no||'',
       elecMeterNo:u.elecMeterNo||u.elec_meter_no||''
@@ -3153,26 +3120,32 @@ async function loadUnitsFromDB(){
 }
 
 function getUnitOwner(unitNum){
-  return units[String(unitNum)]||null;
+  return units[String(unitNum)]?.owner||null;
 }
 
-function removeUnit(unitNum){
-  if(!confirm('Remove owner data for Unit '+unitNum+'?'))return;
-  delete units[String(unitNum)];
-  dbDeleteUnit(unitNum);
+function removeUnit(unitNum, recordType){
+  if(!confirm('Remove '+recordType+' data for Unit '+unitNum+'?'))return;
+  if(units[String(unitNum)]){
+    delete units[String(unitNum)][recordType];
+    if(!Object.keys(units[String(unitNum)]).length) delete units[String(unitNum)];
+  }
+  dbDeleteUnitRecord(unitNum, recordType);
   renderUnitsTable();
-  showToast('Unit '+unitNum+' removed','#C55A11');
+  showToast('Unit '+unitNum+' '+recordType+' removed','#C55A11');
 }
 
 function exportUnitsExcel(){
   const wb=XLSX.utils.book_new();
-  const headers=['Unit Number','Water Meter Number','Elec Meter Number','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
-  const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
-    u.unit,u.waterMeterNo||u.water_meter_no||'',u.elecMeterNo||u.elec_meter_no||'',u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
-    u.email||'',u.phone||'',u.first2||'',u.last2||'',u.email2||'',u.phone2||'',u.notes||''
-  ]);
+  const headers=['Unit Number','Record Type','Account #','Water Meter #','Elec Meter #','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
+  const rows=[];
+  Object.keys(units).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(key=>{
+    ['owner','tenant'].forEach(rtype=>{
+      const u=units[key][rtype]; if(!u) return;
+      rows.push([u.unit,rtype,u.accountNo||u.account_no||'',u.waterMeterNo||u.water_meter_no||'',u.elecMeterNo||u.elec_meter_no||'',u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',u.email||'',u.phone||'',u.first2||'',u.last2||'',u.email2||'',u.phone2||'',u.notes||'']);
+    });
+  });
   const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[8,16,16,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
+  ws['!cols']=[8,8,12,16,16,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
   XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('Unit directory exported');
@@ -3202,7 +3175,6 @@ function switchBillingTab(tab){
 // ══════════════════════════════════════════
 function showUnitInfo(unitNum, e){
   e.stopPropagation();
-  const u=getUnitOwner(unitNum);
   const existing=document.getElementById('unitInfoPopup');
   if(existing) existing.remove();
 
@@ -3210,32 +3182,37 @@ function showUnitInfo(unitNum, e){
   popup.id='unitInfoPopup';
   popup.style.cssText='position:fixed;z-index:600;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem 1.15rem;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:240px;max-width:320px;font-family:var(--sans)';
 
-  if(!u){
+  const unitData=units[String(unitNum)]||{};
+  const hasData=unitData.owner||unitData.tenant;
+  if(!hasData){
     popup.innerHTML=`<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.5rem">
       <div style="font-weight:700;color:var(--navy);margin-bottom:.5rem">Unit ${unitNum}</div>
       No owner data on file.
       <div style="margin-top:.75rem"><button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.3rem .75rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Add Owner</button></div>
     </div>`;
   } else {
-    const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
-    const p2=[u.first2,u.last2].filter(Boolean).join(' ');
-    popup.innerHTML=`
-      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum} — Owner Info</div>
-      <div style="margin-bottom:.65rem">
-        <div style="font-size:.65rem;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 1</div>
+    function buildSection(rec, rtype){
+      const p1=[rec.first,rec.last].filter(Boolean).join(' ')||'—';
+      const p2=[rec.first2,rec.last2].filter(Boolean).join(' ');
+      const col=rtype==='tenant'?'var(--orange)':'var(--blue)';
+      const lbl=rtype==='tenant'?'Tenant':'Owner';
+      return `<div style="margin-bottom:.6rem;padding-bottom:.6rem;border-bottom:1px solid var(--sky)">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${col};margin-bottom:.25rem">${lbl}</div>
         <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p1}</div>
-        ${u.email?`<div style="font-size:.74rem;color:var(--muted)">${u.email}</div>`:''}
-        ${u.phone?`<div style="font-size:.74rem;color:var(--muted)">${u.phone}</div>`:''}
-      </div>
-      ${p2?`<div style="margin-bottom:.65rem">
-        <div style="font-size:.65rem;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.2rem">Person 2</div>
-        <div style="font-size:.84rem;font-weight:600;color:var(--navy)">${p2}</div>
-        ${u.email2?`<div style="font-size:.74rem;color:var(--muted)">${u.email2}</div>`:''}
-        ${u.phone2?`<div style="font-size:.74rem;color:var(--muted)">${u.phone2}</div>`:''}
-      </div>`:''}
-      ${u.notes?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem">${u.notes}</div>`:''}
-      ${(u.accountNo||u.account_no)?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;color:var(--navy)">Account:</span> ${u.accountNo||u.account_no}</div>`:''}
-      <div style="margin-top:.75rem;display:flex;gap:.5rem">
+        ${rec.email?`<div style="font-size:.74rem;color:var(--muted)">${rec.email}</div>`:''}
+        ${rec.phone?`<div style="font-size:.74rem;color:var(--muted)">${rec.phone}</div>`:''}
+        ${p2?`<div style="margin-top:.2rem"><div style="font-size:.78rem;font-weight:600;color:var(--navy)">${p2}</div>${rec.email2?`<div style="font-size:.74rem;color:var(--muted)">${rec.email2}</div>`:''}</div>`:''}
+        ${rec.notes?`<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">${rec.notes}</div>`:''}
+        ${(rec.accountNo||rec.account_no)?`<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem"><span style="font-weight:700;color:var(--navy)">Account:</span> ${rec.accountNo||rec.account_no}</div>`:''}
+      </div>`;
+    }
+    let sections='';
+    if(unitData.owner) sections+=buildSection(unitData.owner,'owner');
+    if(unitData.tenant) sections+=buildSection(unitData.tenant,'tenant');
+    popup.innerHTML=`
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem">Unit ${unitNum}</div>
+      ${sections}
+      <div style="margin-top:.5rem;display:flex;gap:.5rem">
         <button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
         <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer;font-weight:600">Close</button>
       </div>`;
@@ -3271,8 +3248,10 @@ function goToUnitsPage(unitNum){
 function saveUnit(){
   const unitNum=parseInt(document.getElementById('uoUnit').value);
   if(isNaN(unitNum)||unitNum<1){showToast('Enter a valid unit number','#C55A11');return;}
+  const recordType=document.getElementById('uoRecordType')?.value||'owner';
   const u={
     unit:unitNum,
+    recordType,
     first:document.getElementById('uoFirst').value.trim(),
     last:document.getElementById('uoLast').value.trim(),
     email:document.getElementById('uoEmail').value.trim(),
@@ -3286,19 +3265,21 @@ function saveUnit(){
     elecMeterNo:document.getElementById('uoElecMeter')?.value.trim()||'',
     notes:document.getElementById('uoNotes').value.trim()
   };
-  units[String(unitNum)]=u;
+  if(!units[String(unitNum)]) units[String(unitNum)]={};
+  units[String(unitNum)][recordType]=u;
   dbSaveUnit(u);
   renderUnitsTable();
   clearUnitForm();
-  showToast('Unit '+unitNum+' saved');
+  showToast('Unit '+unitNum+' '+recordType+' saved');
   editingUnit=null;
 }
 
-function editUnit(unitNum){
-  const u=units[String(unitNum)];
+function editUnit(unitNum, recordType='owner'){
+  const u=units[String(unitNum)]?.[recordType];
   if(!u)return false;
-  editingUnit=unitNum;
+  editingUnit={unitNum,recordType};
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+  const rtEl=document.getElementById('uoRecordType'); if(rtEl) rtEl.value=recordType;
   set('uoUnit',u.unit); set('uoFirst',u.first); set('uoLast',u.last);
   set('uoEmail',u.email); set('uoPhone',u.phone);
   set('uoFirst2',u.first2); set('uoLast2',u.last2);
@@ -3308,6 +3289,7 @@ function editUnit(unitNum){
   set('uoElecMeter',u.elecMeterNo||u.elec_meter_no);
   set('uoNotes',u.notes);
   document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
+    document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum+' ('+recordType+')';
   document.getElementById('uoSaveBtn').textContent='Update Unit';
   document.getElementById('uoUnit').scrollIntoView({behavior:'smooth',block:'center'});
   return true;
@@ -3316,6 +3298,7 @@ function editUnit(unitNum){
 function clearUnitForm(){
   ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoAccountNo','uoWaterMeter','uoElecMeter','uoNotes'].forEach(id=>{
     const el=document.getElementById(id); if(el)el.value='';
+    const rtEl=document.getElementById('uoRecordType'); if(rtEl) rtEl.value='owner';
   });
   document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
   document.getElementById('uoSaveBtn').textContent='Save Unit';
@@ -3448,9 +3431,14 @@ function renderUnitsTable(){
   const tbody=document.getElementById('unitsBody');
   if(!tbody)return;
   const search=(document.getElementById('unitSearch')?.value||'').toLowerCase();
-  const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
-  const filtered=search?sorted.filter(u=>
+  const allRows=[];
+  Object.keys(units).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(key=>{
+    const ud=units[key];
+    ['owner','tenant'].forEach(rtype=>{ if(ud[rtype]) allRows.push({...ud[rtype],_type:rtype}); });
+  });
+  const filtered=search?allRows.filter(u=>
     String(u.unit).includes(search)||
+    (u._type||'').includes(search)||
     (u.accountNo||u.account_no||'').toLowerCase().includes(search)||
     (u.waterMeterNo||u.water_meter_no||'').toLowerCase().includes(search)||
     (u.elecMeterNo||u.elec_meter_no||'').toLowerCase().includes(search)||
@@ -3460,17 +3448,22 @@ function renderUnitsTable(){
     (u.first2||'').toLowerCase().includes(search)||
     (u.last2||'').toLowerCase().includes(search)||
     (u.email2||'').toLowerCase().includes(search)
-  ):sorted;
+  ):allRows;
 
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML=filtered.map(u=>{
     const p1=[u.first,u.last].filter(Boolean).join(' ')||'—';
     const p2=[u.first2,u.last2].filter(Boolean).join(' ')||'';
+    const isT=u._type==='tenant';
+    const typeBadge=isT
+      ?`<span style="font-size:.65rem;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em">Tenant</span>`
+      :`<span style="font-size:.65rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em">Owner</span>`;
     return `<tr>
       <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
+      <td>${typeBadge}</td>
       <td style="font-family:var(--mono);font-size:.74rem">${u.accountNo||u.account_no||'—'}</td>
       <td style="font-family:var(--mono);font-size:.74rem">${u.waterMeterNo||u.water_meter_no||'—'}</td>
       <td style="font-family:var(--mono);font-size:.74rem">${u.elecMeterNo||u.elec_meter_no||'—'}</td>
@@ -3481,8 +3474,8 @@ function renderUnitsTable(){
       <td style="font-size:.76rem;font-family:var(--mono)">${u.email2||''}</td>
       <td style="font-size:.74rem;color:var(--muted)">${u.notes||''}</td>
       <td style="display:flex;gap:.4rem">
-        <button onclick="editUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
-        <button onclick="removeUnit(${u.unit})" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
+        <button onclick="editUnit(${u.unit},'${u._type}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
+        <button onclick="removeUnit(${u.unit},'${u._type}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
       </td>
     </tr>`;
   }).join('');
@@ -3574,24 +3567,6 @@ ${ps('phone')||''}`;
     <button class="auth-btn" onclick="doLogin()">Sign In</button>
     <div class="auth-error" id="authError">Incorrect username or password</div>
 
-    <details class="auth-test">
-      <summary>Create Test User</summary>
-      <div class="auth-test-body">
-        <div class="auth-mini-grid">
-          <input type="text" id="authCreateUser" placeholder="Username or email">
-          <input type="text" id="authCreateName" placeholder="Display name (optional)">
-          <input type="password" id="authCreatePass" placeholder="Password">
-          <select id="authCreateRole">
-            <option value="readonly">Read Only</option>
-            <option value="entry">Data Entry</option>
-            <option value="billing">Billing</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <button class="auth-mini-btn" onclick="createTestUserFromLogin()">Create Test User</button>
-        <div id="authCreateMsg" class="auth-mini-msg"></div>
-      </div>
-    </details>
   </div>
   <div class="auth-footer">Mogale City Complex &nbsp;|&nbsp; Utility Management System</div>
 </div>
