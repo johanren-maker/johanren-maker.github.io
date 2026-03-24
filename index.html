@@ -30,12 +30,12 @@ function switchBillingTab(tab){
 }
 
 // ══════════════════════════════════════════
-// UNIT INFO POPUP
-// ══════════════════════════════════════════
 function getUnitOwner(unitNum){
   return units[String(unitNum)]||null;
 }
 
+// UNIT INFO POPUP
+// ══════════════════════════════════════════
 function showUnitInfo(unitNum, e){
   e.stopPropagation();
   const u=getUnitOwner(unitNum);
@@ -237,7 +237,7 @@ function emailInvoice(){
   const {wUsage,eUsage,wCharge,eCharge,total,dueDate,fmtDate,invNo,ownerName}=invData(previewKey,previewUnit);
   const complexName=ps('complex')||'Utility Management';
   const subject='Utility Invoice '+invNo+' — Unit '+previewUnit+' — '+d.label;
-  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+Math.round(wUsage)+' kl @ R'+d.waterRate+'/kl = R'+fmt(wCharge)+'\nElectricity: '+Math.round(eUsage)+' kWh @ R'+d.elecRate+'/kWh = R'+fmt(eCharge)+'\nTotal Due: R'+fmt(total)+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
+  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+wUsage.toFixed(4)+' kl @ R'+d.waterRate+'/kl = R'+wCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nElectricity: '+eUsage.toFixed(0)+' kWh @ R'+d.elecRate+'/kWh = R'+eCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nTotal Due: R'+total.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
   window.open('mailto:'+emails.join(',')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
   showToast('Email client opened for '+emails.join(', '));
 }
@@ -1548,214 +1548,6 @@ async function loadUnitsFromDB(){
   });
 }
 
-// ═══════════════ AUTH & USER MANAGEMENT ═══════════════
-
-async function hashPwd(pwd){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
-  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
-  lastLogin:null};
-
-// Always writes directly to IDB — never fails silently
-async function seedDefaultAdmin(){
-  return new Promise(res=>{
-    if(!db){res();return;}
-    try{
-      const store=db.transaction('users','readwrite').objectStore('users');
-      const check=store.get('admin');
-      check.onsuccess=e=>{
-        if(!e.target.result){
-          db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN);
-        }
-        res();
-      };
-      check.onerror=()=>res();
-    }catch(e){res();}
-  });
-}
-
-// Always read from local IDB — used by login for reliability
-function getUserFromIDB(username){
-  return new Promise(res=>{
-    if(!db){res(null);return;}
-    try{
-      const req=db.transaction('users','readonly').objectStore('users').get(username);
-      req.onsuccess=e=>res(e.target.result||null);
-      req.onerror=()=>res(null);
-    }catch(e){res(null);}
-  });
-}
-
-function saveSession(user){
-  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
-  catch(e){ console.warn('Session storage unavailable',e); }
-}
-function loadSession(){
-  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
-}
-function clearSession(){
-  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
-}
-
-let currentUser=null;
-
-const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
-const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
-
-function showUserMenu(){
-  if(!confirm('Signed in as '+currentUser.name+' ('+( ROLE_LABELS[currentUser.role]||currentUser.role)+')\n\nClick OK to sign out.'))return;
-  doLogout();
-}
-
-async function addUser(){
-  const u=document.getElementById('umNewUser').value.trim().toLowerCase();
-  const n=document.getElementById('umNewName').value.trim();
-  const p=document.getElementById('umNewPass').value;
-  const r=document.getElementById('umNewRole').value;
-  if(!u||!n||!p){showToast('Fill in all fields','#C55A11');return;}
-  const hash=await hashPwd(p);
-  await dbSaveUser({username:u,name:n,role:r,hash,lastLogin:null});
-  document.getElementById('umNewUser').value='';
-  document.getElementById('umNewName').value='';
-  document.getElementById('umNewPass').value='';
-  setTimeout(renderUMTable,200);
-  showToast('User '+u+' added');
-}
-
-async function resetUserPwd(username){
-  const newPwd=prompt('New password for '+username+':');
-  if(!newPwd)return;
-  const user=await getUserFromIDB(username);
-  if(!user){showToast('User not found','#C55A11');return;}
-  user.hash=await hashPwd(newPwd);
-  await dbSaveUser(user);
-  showToast('Password reset for '+username);
-}
-
-async function removeUser(username){
-  if(username==='admin'){showToast('Cannot remove admin','#C55A11');return;}
-  if(!confirm('Remove user: '+username+'?'))return;
-  await dbDeleteUser(username);
-  setTimeout(renderUMTable,200);
-  showToast('User '+username+' removed','#C55A11');
-}
-
-async function renderUMTable(){
-  const tbody=document.getElementById('umBody');
-  if(!tbody)return;
-  const users=await dbGetAllUsers();
-  tbody.innerHTML=users.length?users.map(u=>`<tr>
-    <td style="font-family:var(--mono)">${u.username}</td>
-    <td>${u.name}</td>
-    <td><span class="role-pill ${ROLE_COLORS[u.role]||''}">${ROLE_LABELS[u.role]||u.role}</span></td>
-    <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleString('en-ZA',{dateStyle:'short',timeStyle:'short'}):'Never'}</td>
-    <td style="display:flex;gap:.4rem">
-      <button onclick="resetUserPwd('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Reset Pwd</button>
-      ${u.username!=='admin'?`<button onclick="removeUser('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-weight:600">Remove</button>`:''}
-    </td>
-  </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">No users</td></tr>';
-}
-
-async function doLogin(){
-  const username=document.getElementById('authUser').value.trim().toLowerCase();
-  const password=document.getElementById('authPass').value;
-  const errEl=document.getElementById('authError');
-  errEl.style.display='none';
-  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
-
-  // Always check local IDB first for reliability
-  let user=await getUserFromIDB(username);
-
-  // If not in IDB, try Supabase
-  if(!user&&dbOnline){
-    try{
-      const rows=await sbFetch('app_users','GET',null,'?username=eq.'+encodeURIComponent(username));
-      if(rows&&rows.length){
-        user={username:rows[0].username,name:rows[0].name,role:rows[0].role,
-          hash:rows[0].hash,lastLogin:rows[0].last_login};
-        if(db) db.transaction('users','readwrite').objectStore('users').put(user);
-      }
-    }catch(e){ console.warn('Supabase user lookup failed',e); }
-  }
-
-  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  const hash=await hashPwd(password);
-  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  user.lastLogin=new Date().toISOString();
-  dbSaveUser(user);
-  currentUser={username:user.username,name:user.name,role:user.role};
-  saveSession(currentUser);
-  applyAuth();
-}
-
-function doLogout(){
-  clearSession();
-  currentUser=null;
-  document.getElementById('authOverlay').style.display='flex';
-  document.getElementById('authUser').value='';
-  document.getElementById('authPass').value='';
-  document.getElementById('authError').style.display='none';
-  document.getElementById('userChip').style.display='none';
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
-  document.querySelector('.shell').style.display='none';
-}
-
-function applyAuth(){
-  if(!currentUser)return;
-  document.getElementById('authOverlay').style.display='none';
-  document.querySelector('header').style.opacity='';
-  document.querySelector('header').style.pointerEvents='';
-  document.querySelector('.shell').style.display='';
-  const chip=document.getElementById('userChip');
-  chip.style.display='flex';
-  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
-  document.getElementById('userChipName').textContent=currentUser.name;
-  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
-  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
-    const roles=btn.getAttribute('data-roles')||'';
-    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
-  });
-  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
-  if(first) first.click();
-  if(currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
-  renderUMTable();
-  if(typeof showMobileNav==='function') showMobileNav();
-  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
-}
-
-// EMERGENCY: Create test user in database
-async function emergencyCreateTestUser(){
-  const testUser={username:'test',name:'Test User',role:'entry',hash:'9f86d081884c7d6d9ffd60014fc7ee77e1f75f6e2d3a71e9ad8b8e1c5a2f3c4d',lastLogin:null};
-  if(!db){console.error('Database not ready');return;}
-  try{
-    const tx=db.transaction('users','readwrite');
-    const store=tx.objectStore('users');
-    const req=store.put(testUser);
-    req.onsuccess=()=>{console.log('✓ Test user created: test / test');document.getElementById('authUser').value='test';document.getElementById('authPass').value='test';};
-    req.onerror=()=>console.error('Failed',req.error);
-  }catch(e){console.error('Error:',e);}
-}
-
-// EMERGENCY: Create admin user in database  
-async function emergencyCreateAdminUser(){
-  if(!db){console.error('Database not ready');return;}
-  try{
-    const tx=db.transaction('users','readwrite');
-    const store=tx.objectStore('users');
-    const req=store.put(DEFAULT_ADMIN);
-    req.onsuccess=()=>{console.log('✓ Admin user created: admin / admin');document.getElementById('authUser').value='admin';document.getElementById('authPass').value='admin';};
-    req.onerror=()=>console.error('Failed',req.error);
-  }catch(e){console.error('Error:',e);}
-}
-
 // ═══════════════ INIT ═══════════════
 async function init(){
   // Hide main content until authenticated
@@ -1779,8 +1571,11 @@ async function init(){
     const online = await checkSupabase();
     setDBStatus(online);
 
+    // Load Supabase credentials from IDB (stored by admin, never in code)
+    const cloudCfg=await loadCloudConfig();
+    if(cloudCfg&&cloudCfg.sbUrl&&cloudCfg.sbKey){ SB_URL=cloudCfg.sbUrl; SB_KEY=cloudCfg.sbKey; }
+
     // Always seed default admin to LOCAL IDB first (guarantees login works offline)
-    // This runs every version upgrade — safe because it only inserts if missing
     await seedDefaultAdmin();
 
     await loadPropFromDB();
@@ -1917,7 +1712,7 @@ function renderSumStrip(c){
   const s=document.createElement('div'); s.className='sum-strip';
   s.innerHTML=`
     <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
-      <div class="sv">${tU}}</div><div class="ss">${unit} this month</div></div>
+      <div class="sv">${tU.toFixed(activeType==='water'?4:0)}</div><div class="ss">${unit} this month</div></div>
     <div class="stat"><div class="sl">💰 Total Charge</div>
       <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
     <div class="stat"><div class="sl">📋 Captured</div>
@@ -1966,7 +1761,7 @@ function renderDataTable(c){
         onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value,this)"></td>
       <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value,this)"></td>
-      <td class="n"><span class="uv">${u!==null?u}:'—'}</span></td>
+      <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
       <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
       <td>${isW?`<select onchange="upRow('${activeKey}','${activeType}',${idx},'flagLeak',this.value==='leak')">
         <option value="">Normal</option>
@@ -1978,7 +1773,7 @@ function renderDataTable(c){
         onchange="upRow('${activeKey}','${activeType}',${idx},'notes',this.value)">`}</td>`;
     tbody.appendChild(tr);
   });
-  document.getElementById('ftU').textContent=tU};
+  document.getElementById('ftU').textContent=tU.toFixed(dp);
   document.getElementById('ftC').textContent='R'+fmt(tC);
 }
 
@@ -2073,7 +1868,7 @@ function updateRowCalcs(key,type,idx){
   if(!trs[idx])return;
   const tds=trs[idx].querySelectorAll('td');
   // td[3]=usage, td[4]=charge
-  if(tds[3]) tds[3].innerHTML='<span class="uv">'+(usage!==null?usage}:'—')+'</span>';
+  if(tds[3]) tds[3].innerHTML='<span class="uv">'+(usage!==null?usage.toFixed(dp):'—')+'</span>';
   if(tds[4]) tds[4].innerHTML='<span class="cv">'+(charge!==null?'R'+fmt(charge):'—')+'</span>';
 
   // Update footer totals
@@ -2084,7 +1879,7 @@ function updateRowCalcs(key,type,idx){
   });
   const ftU=document.getElementById('ftU');
   const ftC=document.getElementById('ftC');
-  if(ftU) ftU.textContent=tU};
+  if(ftU) ftU.textContent=tU.toFixed(dp);
   if(ftC) ftC.textContent='R'+fmt(tC);
 
   // Update summary strip numbers
@@ -2107,7 +1902,7 @@ function renderSumStripInPlace(key,type){
   const strip=document.querySelector('.sum-strip');
   if(!strip)return;
   const stats=strip.querySelectorAll('.stat');
-  if(stats[0]) stats[0].querySelector('.sv').textContent=tU};
+  if(stats[0]) stats[0].querySelector('.sv').textContent=tU.toFixed(dp);
   if(stats[1]) stats[1].querySelector('.sv').textContent='R'+fmt(tC);
   if(stats[2]) stats[2].querySelector('.sv').textContent=filled+'/'+d.units;
   if(stats[3]&&type==='water'){
@@ -2240,15 +2035,9 @@ function upBilling(key,field,value){months[key].billing[field]=value;dbSave(key)
 
 function calcTotals(key,type){
   const d=months[key];
-  if(!d||!d[type])return {usage:0,charge:0};
   return d[type].reduce((s,r)=>{
     const o=parseFloat(r.opening),c=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(c)&&c>=o){
-      const usage=c-o;
-      const rate=type==='water'?d.waterRate:d.elecRate;
-      s.usage+=usage;
-      s.charge+=usage*rate;
-    }
+    if(!isNaN(o)&&!isNaN(c)&&c>=o){s.usage+=c-o;s.charge+=(c-o)*(type==='water'?d.waterRate:d.elecRate);}
     return s;
   },{usage:0,charge:0});
 }
@@ -2268,18 +2057,18 @@ function buildRecovery(key){
       <div class="rc-label">💧 Water Recovery — ${d.label}</div>
       <div class="rc-type">${rl(wD)}</div>
       <div class="rc-val">${wD>=0?'+':'−'}R${fmt(Math.abs(wD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${Math.round(wT.usage)} kl)<br>
-        Municipal: <strong>R${fmt(wM)}</strong> (${Math.round(wUM)||'?'} kl)<br>
-        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${Math.round(wT.usage-wUM)} kl</div>
+      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(4)} kl)<br>
+        Municipal: <strong>R${fmt(wM)}</strong> (${wUM||'?'} kl)<br>
+        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(4)} kl</div>
       ${wM>0?`<div class="rc-pct">${pct(wD,wM)}</div>`:''}
     </div>
     <div class="rec-card ${rc(eD)}">
       <div class="rc-label">⚡ Electricity Recovery — ${d.label}</div>
       <div class="rc-type">${rl(eD)}</div>
       <div class="rc-val">${eD>=0?'+':'−'}R${fmt(Math.abs(eD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${Math.round(eT.usage)} kWh)<br>
-        Municipal: <strong>R${fmt(eM)}</strong> (${Math.round(eUM)||'?'} kWh)<br>
-        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${Math.round(eT.usage-eUM)} kWh</div>
+      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${eT.usage.toFixed(0)} kWh)<br>
+        Municipal: <strong>R${fmt(eM)}</strong> (${eUM||'?'} kWh)<br>
+        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${(eT.usage-eUM).toFixed(0)} kWh</div>
       ${eM>0?`<div class="rc-pct">${pct(eD,eM)}</div>`:''}
     </div>`;
   return strip;
@@ -2379,9 +2168,9 @@ function renderCmpResults(){
       const dC=chA!==null&&chB!==null?chB-chA:null;
       const tr=document.createElement('tr');
       tr.innerHTML=`<td class="ul">Unit ${i+1}</td>
-        <td class="n val-a">${uA!==null?uA}:'—'}</td>
-        <td class="n val-b">${uB!==null?uB}:'—'}</td>
-        <td class="n ${dU===null?'':dU>0?'delta-neg':'delta-pos'}">${dU!==null?(dU>=0?'+':'')+dU}:'—'}</td>
+        <td class="n val-a">${uA!==null?uA.toFixed(dp):'—'}</td>
+        <td class="n val-b">${uB!==null?uB.toFixed(dp):'—'}</td>
+        <td class="n ${dU===null?'':dU>0?'delta-neg':'delta-pos'}">${dU!==null?(dU>=0?'+':'')+dU.toFixed(dp):'—'}</td>
         <td class="n val-a">${chA!==null?'R'+fmt(chA):'—'}</td>
         <td class="n val-b">${chB!==null?'R'+fmt(chB):'—'}</td>
         <td class="n ${dC===null?'':dC>0?'delta-neg':'delta-pos'}">${dC!==null?(dC>=0?'+R':'−R')+fmt(Math.abs(dC)):'—'}</td>`;
@@ -2522,7 +2311,7 @@ function renderDashboard(){
   const ic1=document.createElement('div'); ic1.className='ins-card';
   ic1.innerHTML=`<h4>💧 Top 5 Water Consumers</h4>${wTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>20?'amber':''}">${u.usage} kl</span></div>`
+    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(4)} kl</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic1);
 
   const eTop=[]; keys.forEach(key=>{months[key].elec.forEach(r=>{
@@ -2533,7 +2322,7 @@ function renderDashboard(){
   const ic2=document.createElement('div'); ic2.className='ins-card';
   ic2.innerHTML=`<h4>⚡ Top 5 Electricity Consumers</h4>${eTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>500?'amber':''}">${u.usage} kWh</span></div>`
+    <span class="irv ${u.usage>500?'amber':''}">${u.usage.toFixed(0)} kWh</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic2);
 
   const leakList=[]; keys.forEach(key=>{months[key].water.forEach(r=>{
@@ -2814,8 +2603,8 @@ function buildInvoiceHTML(key,unitNum){
         <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
       </div>
       <div class="chips">
-        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${Math.round(wUsage)} kl</div></div>
-        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${Math.round(eUsage)} kWh</div></div>
+        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(4)} kl</div></div>
+        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
         <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
       <table>
@@ -2825,17 +2614,17 @@ function buildInvoiceHTML(key,unitNum){
         <tbody>
           <tr>
             <td>Water Consumption</td>
-            <td style="text-align:right">${!isNaN(wO)?Math.round(wO):'--'}</td>
-            <td style="text-align:right">${!isNaN(wC)?Math.round(wC):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${Math.round(wUsage)} kl</td>
+            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(4):'--'}</td>
+            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(4):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(4)} kl</td>
             <td style="text-align:right">R${d.waterRate}/kl</td>
             <td style="text-align:right;font-weight:700">R${fmt(wCharge)}</td>
           </tr>
           <tr>
             <td>Electricity Consumption</td>
-            <td style="text-align:right">${!isNaN(eO)?Math.round(eO):'--'}</td>
-            <td style="text-align:right">${!isNaN(eC)?Math.round(eC):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${Math.round(eUsage)} kWh</td>
+            <td style="text-align:right">${!isNaN(eO)?eO.toFixed(0):'--'}</td>
+            <td style="text-align:right">${!isNaN(eC)?eC.toFixed(0):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${eUsage.toFixed(0)} kWh</td>
             <td style="text-align:right">R${d.elecRate}/kWh</td>
             <td style="text-align:right;font-weight:700">R${fmt(eCharge)}</td>
           </tr>
@@ -2917,8 +2706,8 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
     doc.setFont('helvetica','bold'); doc.setFontSize(9);
     doc.text(value,lx+3,ly+5);
   }
-  chip(15,y,'WATER USAGE',Math.round(wUsage)+' kl',46,117,182);
-  chip(70,y,'ELECTRICITY',Math.round(eUsage)+' kWh',197,90,17);
+  chip(15,y,'WATER USAGE',wUsage.toFixed(4)+' kl',46,117,182);
+  chip(70,y,'ELECTRICITY',eUsage.toFixed(0)+' kWh',197,90,17);
   chip(125,y,'TOTAL DUE','R'+fmt(total),31,56,100);
   y+=20;
 
@@ -2950,11 +2739,11 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
   }
 
   tRow('Water Consumption',
-    !isNaN(wO)?Math.round(wO):'--', !isNaN(wC)?Math.round(wC):'--',
-    Math.round(wUsage)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
+    !isNaN(wO)?wO.toFixed(4):'--', !isNaN(wC)?wC.toFixed(4):'--',
+    wUsage.toFixed(4)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
   tRow('Electricity Consumption',
-    !isNaN(eO)?Math.round(eO):'--', !isNaN(eC)?Math.round(eC):'--',
-    Math.round(eUsage)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
+    !isNaN(eO)?eO.toFixed(0):'--', !isNaN(eC)?eC.toFixed(0):'--',
+    eUsage.toFixed(0)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
 
   if(note){
     y+=2; doc.setFontSize(7.5); doc.setTextColor(192,0,0); doc.setFont('helvetica','italic');
@@ -3251,13 +3040,269 @@ function exportExcel(){
 
 // ═══════════════ HELPERS ═══════════════
 function fmt(n){
-  if(isNaN(n)||n===null||n===undefined)return '0';
-  return Math.round(n).toLocaleString('en-ZA');
+  if(isNaN(n)||n===null||n===undefined)return "0";
+  return Math.round(n).toLocaleString("en-ZA");
 }
 function showToast(msg,color='var(--green)'){
   const t=document.getElementById('toast');t.textContent=msg;t.style.background=color;
   t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);
 }
+
+// ═══════════════════════════════════════════════════════════
+// AUTH SYSTEM
+// ═══════════════════════════════════════════════════════════
+async function hashPwd(pwd){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
+  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+  lastLogin:null};
+
+// Always writes directly to IDB — never fails silently
+async function seedDefaultAdmin(){
+  return new Promise(res=>{
+    if(!db){res();return;}
+    try{
+      const store=db.transaction('users','readwrite').objectStore('users');
+      const check=store.get('admin');
+      check.onsuccess=e=>{
+        if(!e.target.result){
+          db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN);
+        }
+        res();
+      };
+      check.onerror=()=>res();
+    }catch(e){res();}
+  });
+}
+
+// Always read from local IDB — used by login for reliability
+function getUserFromIDB(username){
+  return new Promise(res=>{
+    if(!db){res(null);return;}
+    try{
+      const req=db.transaction('users','readonly').objectStore('users').get(username);
+      req.onsuccess=e=>res(e.target.result||null);
+      req.onerror=()=>res(null);
+    }catch(e){res(null);}
+  });
+}
+
+function saveSession(user){
+  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
+  catch(e){ console.warn('Session storage unavailable',e); }
+}
+function loadSession(){
+  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
+}
+function clearSession(){
+  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
+}
+
+let currentUser=null;
+
+async function doLogin(){
+  const username=document.getElementById('authUser').value.trim().toLowerCase();
+  const password=document.getElementById('authPass').value;
+  const errEl=document.getElementById('authError');
+  errEl.style.display='none';
+  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
+
+  // Always check local IDB first for reliability
+  let user=await getUserFromIDB(username);
+
+  // If not in IDB, try Supabase
+  if(!user&&dbOnline){
+    try{
+      const rows=await sbFetch('app_users','GET',null,'?username=eq.'+encodeURIComponent(username));
+      if(rows&&rows.length){
+        user={username:rows[0].username,name:rows[0].name,role:rows[0].role,
+          hash:rows[0].hash,lastLogin:rows[0].last_login};
+        if(db) db.transaction('users','readwrite').objectStore('users').put(user);
+      }
+    }catch(e){ console.warn('Supabase user lookup failed',e); }
+  }
+
+  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+
+  const hash=await hashPwd(password);
+  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
+
+  user.lastLogin=new Date().toISOString();
+  dbSaveUser(user);
+  currentUser={username:user.username,name:user.name,role:user.role};
+  saveSession(currentUser);
+  applyAuth();
+}
+
+function doLogout(){
+  clearSession();
+  currentUser=null;
+  document.getElementById('authOverlay').style.display='flex';
+  document.getElementById('authUser').value='';
+  document.getElementById('authPass').value='';
+  document.getElementById('authError').style.display='none';
+  document.getElementById('userChip').style.display='none';
+  document.querySelector('header').style.opacity='0.3';
+  document.querySelector('header').style.pointerEvents='none';
+  document.querySelector('.shell').style.display='none';
+}
+
+function applyAuth(){
+  if(!currentUser)return;
+  document.getElementById('authOverlay').style.display='none';
+  document.querySelector('header').style.opacity='';
+  document.querySelector('header').style.pointerEvents='';
+  document.querySelector('.shell').style.display='';
+  const chip=document.getElementById('userChip');
+  chip.style.display='flex';
+  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
+  document.getElementById('userChipName').textContent=currentUser.name;
+  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
+  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
+    const roles=btn.getAttribute('data-roles')||'';
+    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
+  });
+  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
+  if(first) first.click();
+  if(currentUser.role==='readonly'){
+    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
+  }
+  renderUMTable();
+  if(typeof showMobileNav==='function') showMobileNav();
+  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
+}
+
+const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
+const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
+
+function showUserMenu(){
+  if(!confirm('Signed in as '+currentUser.name+' ('+( ROLE_LABELS[currentUser.role]||currentUser.role)+')\n\nClick OK to sign out.'))return;
+  doLogout();
+}
+
+async function addUser(){
+  const u=document.getElementById('umNewUser').value.trim().toLowerCase();
+  const n=document.getElementById('umNewName').value.trim();
+  const p=document.getElementById('umNewPass').value;
+  const r=document.getElementById('umNewRole').value;
+  if(!u||!n||!p){showToast('Fill in all fields','#C55A11');return;}
+  const hash=await hashPwd(p);
+  await dbSaveUser({username:u,name:n,role:r,hash,lastLogin:null});
+  document.getElementById('umNewUser').value='';
+  document.getElementById('umNewName').value='';
+  document.getElementById('umNewPass').value='';
+  setTimeout(renderUMTable,200);
+  showToast('User '+u+' added');
+}
+
+async function resetUserPwd(username){
+  const newPwd=prompt('New password for '+username+':');
+  if(!newPwd)return;
+  const user=await getUserFromIDB(username);
+  if(!user){showToast('User not found','#C55A11');return;}
+  user.hash=await hashPwd(newPwd);
+  await dbSaveUser(user);
+  showToast('Password reset for '+username);
+}
+
+async function removeUser(username){
+  if(username==='admin'){showToast('Cannot remove admin','#C55A11');return;}
+  if(!confirm('Remove user: '+username+'?'))return;
+  await dbDeleteUser(username);
+  setTimeout(renderUMTable,200);
+  showToast('User '+username+' removed','#C55A11');
+}
+
+async function renderUMTable(){
+  const tbody=document.getElementById('umBody');
+  if(!tbody)return;
+  const users=await dbGetAllUsers();
+  tbody.innerHTML=users.length?users.map(u=>`<tr>
+    <td style="font-family:var(--mono)">${u.username}</td>
+    <td>${u.name}</td>
+    <td><span class="role-pill ${ROLE_COLORS[u.role]||''}">${ROLE_LABELS[u.role]||u.role}</span></td>
+    <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleString('en-ZA',{dateStyle:'short',timeStyle:'short'}):'Never'}</td>
+    <td style="display:flex;gap:.4rem">
+      <button onclick="resetUserPwd('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Reset Pwd</button>
+      ${u.username!=='admin'?`<button onclick="removeUser('${u.username}')" style="font-size:.7rem;padding:.22rem .55rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-weight:600">Remove</button>`:''}
+    </td>
+  </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">No users</td></tr>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLOUD DB CONFIG — stored in IDB, loaded at startup
+// ═══════════════════════════════════════════════════════════
+const CLOUD_CFG_KEY='cloudConfig';
+
+async function loadCloudConfig(){
+  return new Promise(res=>{
+    if(!db){res(null);return;}
+    try{
+      const tx=db.transaction('propSettings','readonly');
+      const req=tx.objectStore('propSettings').get(CLOUD_CFG_KEY);
+      req.onsuccess=e=>res(e.target.result||null);
+      req.onerror=()=>res(null);
+    }catch(e){res(null);}
+  });
+}
+
+async function saveCloudConfigToDB(url,key){
+  if(!db)return;
+  try{
+    db.transaction('propSettings','readwrite')
+      .objectStore('propSettings')
+      .put({key:CLOUD_CFG_KEY,sbUrl:url,sbKey:key});
+  }catch(e){ console.error('saveCloudConfig failed',e); }
+}
+
+async function deleteCloudConfigFromDB(){
+  if(!db)return;
+  try{ db.transaction('propSettings','readwrite').objectStore('propSettings').delete(CLOUD_CFG_KEY); }catch(e){}
+}
+
+function loadSBConfigInputs(){
+  const urlEl=document.getElementById('sbUrlInput');
+  const keyEl=document.getElementById('sbKeyInput');
+  if(urlEl) urlEl.value=SB_URL||'';
+  if(keyEl) keyEl.value=SB_KEY||'';
+}
+
+async function saveSupabaseConfig(){
+  const url=(document.getElementById('sbUrlInput')?.value||'').trim().replace(/\/$/,'');
+  const key=(document.getElementById('sbKeyInput')?.value||'').trim();
+  if(!url||!key){showToast('Enter both URL and key','#C55A11');return;}
+  SB_URL=url; SB_KEY=key;
+  const ok=await checkSupabase();
+  if(!ok){SB_URL='';SB_KEY='';showToast('Connection failed','#C00000');return;}
+  await saveCloudConfigToDB(url,key);
+  setDBStatus(true);
+  renderCloudDisplay();
+  showToast('Connected to Supabase!');
+}
+
+async function testSupabaseConnection(){
+  const ok=await checkSupabase();
+  setDBStatus(ok);
+  showToast(ok?'Connection OK':'Connection failed',ok?'var(--green)':'#C00000');
+}
+
+async function syncToSupabase(){
+  await syncLocalToCloud();
+}
+
+async function emergencyReset(){
+  if(!confirm('Reset admin password back to "admin"?\n\nAll other accounts will be kept.\n\nContinue?'))return;
+  await seedDefaultAdmin();
+  if(db){ try{ db.transaction('users','readwrite').objectStore('users').put(DEFAULT_ADMIN); }catch(e){} }
+  document.getElementById('authUser').value='admin';
+  document.getElementById('authPass').value='admin';
+  document.getElementById('authError').style.display='none';
+  showToast('Admin reset — password is now: admin');
+}
+
 </script>
 
 <!-- AUTH OVERLAY -->
