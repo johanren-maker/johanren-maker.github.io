@@ -676,6 +676,52 @@ input[type=file]{display:none}
       </div>
     </div>
   </div>
+
+  <div class="admin-card" style="margin-bottom:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem">
+      <h3>Extra Meter Items</h3>
+      <span style="font-size:.72rem;color:var(--muted)">Add named items like "Sewerage Pump" that are not unit numbers</span>
+    </div>
+    <div class="tw"><table id="extraItemsTable" style="width:100%;font-size:.8rem">
+      <thead><tr>
+        <th>Item Name</th>
+        <th style="text-align:center;width:70px">💧 Water</th>
+        <th style="text-align:center;width:70px">⚡ Elec</th>
+        <th>Notes</th>
+        <th style="width:90px">Actions</th>
+      </tr></thead>
+      <tbody id="extraItemsBody">
+        <tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No extra meter items defined</td></tr>
+      </tbody>
+    </table></div>
+    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <h4 id="extraItemFormTitle" style="margin-bottom:.75rem;font-size:.85rem;font-weight:700">Add Extra Meter Item</h4>
+      <div style="display:grid;grid-template-columns:2fr 2fr;gap:.75rem;margin-bottom:.75rem">
+        <div>
+          <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Item Name</label>
+          <input type="text" id="extraItemName" placeholder="e.g. Sewerage Pump">
+        </div>
+        <div>
+          <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Notes</label>
+          <input type="text" id="extraItemNotes" placeholder="Optional note">
+        </div>
+      </div>
+      <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
+        <span style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Show on readings page under:</span>
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.82rem;cursor:pointer">
+          <input type="checkbox" id="extraItemWater" style="accent-color:var(--blue)"> 💧 Water
+        </label>
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.82rem;cursor:pointer">
+          <input type="checkbox" id="extraItemElec" style="accent-color:var(--orange)"> ⚡ Electricity
+        </label>
+      </div>
+      <input type="hidden" id="extraItemEditId">
+      <div style="display:flex;gap:.5rem">
+        <button class="btn-exp" onclick="saveExtraItem()">Save Item</button>
+        <button class="btn-ghost" onclick="clearExtraItemForm()">Clear</button>
+      </div>
+    </div>
+  </div>
 </div>
 <div id="page-admin" class="page">
   <div class="section-hdr">Database Management</div>
@@ -1003,7 +1049,7 @@ function showPage(id,btn){
   if(id==='dashboard')renderDashboard();
   if(id==='admin'){renderAdminStatus();renderPropDisplayGrid();updatePropertyBanner();}
   if(id==='invoices'){populateInvMonths();updatePropertyBanner();}
-  if(id==='units')renderUnitsTable();
+  if(id==='units'){renderUnitsTable();renderExtraItemsTable();}
   syncMobileNav(id);
 }
 
@@ -1020,6 +1066,7 @@ function addMonth(){
     label:`${MNAMES[parseInt(m)-1]} ${y}`,month:m,year:y,units,waterRate:wr,elecRate:er,
     water:Array.from({length:units},(_,i)=>({unit:i+1,opening:'',closing:'',flagLeak:false,notes:''})),
     elec: Array.from({length:units},(_,i)=>({unit:i+1,opening:'',closing:'',notes:''})),
+    extraReadings:{water:{},elec:{}},
     billing:{waterUsage:'',waterAmount:'',elecUsage:'',elecAmount:'',invoiceNo:'',invoiceDate:''}
   };
   dbSave(key); renderTabs(); activateTab(key); populateInvMonths();
@@ -1108,15 +1155,18 @@ function formatReadingInput(type, value){
 
 function renderSumStrip(c){
   const d=months[activeKey];
-  const rows=activeType==='water'?d.water:d.elec;
+  const baseRows=activeType==='water'?d.water:d.elec;
+  const extraRows=getExtraRows(activeKey,activeType);
+  const rows=[...baseRows,...extraRows];
   const rate=activeType==='water'?d.waterRate:d.elecRate;
   const unit=activeType==='water'?'kl':'kWh';
   let tU=0,tC=0,filled=0,leaks=0;
   rows.forEach(r=>{
     const u=getUsage(activeType, r.opening, r.closing);
     if(u!==null){tU+=u;tC+=u*rate;filled++;}
-    if(activeType==='water'&&r.flagLeak)leaks++;
+    if(activeType==='water'&&r.flagLeak&&!r.extraItemId)leaks++;
   });
+  const totalSlots=d.units+extraRows.length;
   const s=document.createElement('div'); s.className='sum-strip';
   s.innerHTML=`
     <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
@@ -1124,7 +1174,7 @@ function renderSumStrip(c){
     <div class="stat"><div class="sl">💰 Total Charge</div>
       <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
     <div class="stat"><div class="sl">📋 Captured</div>
-      <div class="sv">${filled}/${d.units}</div><div class="ss">readings entered</div></div>
+      <div class="sv">${filled}/${totalSlots}</div><div class="ss">readings entered</div></div>
     ${activeType==='water'?`<div class="stat ${leaks>0?'warn':''}">
       <div class="sl">🔴 Problems</div><div class="sv">${leaks}</div>
       <div class="ss">unit${leaks!==1?'s':''} flagged</div></div>`:''}`;
@@ -1134,6 +1184,7 @@ function renderSumStrip(c){
 function renderDataTable(c){
   const d=months[activeKey];
   const rows=activeType==='water'?d.water:d.elec;
+  const extraRows=getExtraRows(activeKey,activeType);
   const rate=activeType==='water'?d.waterRate:d.elecRate;
   const unit=activeType==='water'?'kl':'kWh';
   const isW=activeType==='water'; const dp=0;
@@ -1180,6 +1231,24 @@ function renderDataTable(c){
         onchange="upRow('${activeKey}','${activeType}',${idx},'notes',this.value)">`}</td>`;
     tbody.appendChild(tr);
   });
+
+  extraRows.forEach(ex=>{
+    const tr=document.createElement('tr');
+    const u=getUsage(activeType, ex.opening, ex.closing);
+    const ch=u!==null?u*rate:null;
+    if(u!==null){tU+=u;tC+=ch;}
+    tr.innerHTML=`<td class="ul" style="white-space:nowrap">${ex.itemName}</td>
+      <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,ex.opening)}"
+        onchange="upExtraRow('${activeKey}','${activeType}','${ex.extraItemId}','opening',this.value)"></td>
+      <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,ex.closing)}"
+        onchange="upExtraRow('${activeKey}','${activeType}','${ex.extraItemId}','closing',this.value)"></td>
+      <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
+      <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
+      <td><input type="text" placeholder="Note…" value="${ex.notes||''}"
+        onchange="upExtraRow('${activeKey}','${activeType}','${ex.extraItemId}','notes',this.value)"></td>`;
+    tbody.appendChild(tr);
+  });
+
   document.getElementById('ftU').textContent=tU.toFixed(dp);
   document.getElementById('ftC').textContent='R'+fmt(tC);
 }
@@ -1225,6 +1294,36 @@ function upRow(key,type,idx,field,value){
   dbSave(key); renderEntryContent();
 }
 
+function upExtraRow(key,type,itemId,field,value){
+  if(currentUser&&currentUser.role==='readonly'){showToast('Read-only access','#C55A11');return;}
+  const row=getExtraItemRow(key,type,itemId);
+  if(!row){showToast('Extra item row not found','#C00000');return;}
+  if(field==='opening'||field==='closing'){
+    const num=getReadingNumber(type, value);
+    const otherField=field==='opening'?'closing':'opening';
+    const otherVal=getReadingNumber(type, row[otherField]);
+    const inputEl=event?.target;
+    if(inputEl) inputEl.classList.remove('input-error');
+
+    if(value!==''&&isNaN(num)){
+      showValidationError(inputEl,'Must be a number');
+      return;
+    }
+    if(!isNaN(num)&&!isNaN(otherVal)&&field==='closing'&&num<otherVal){
+      showValidationError(inputEl,'Closing ('+num.toFixed(0)+') cannot be less than opening ('+otherVal.toFixed(0)+')');
+      return;
+    }
+    if(!isNaN(num)&&!isNaN(otherVal)&&field==='opening'&&num>otherVal){
+      showValidationError(inputEl,'Opening ('+num.toFixed(0)+') cannot exceed closing ('+otherVal.toFixed(0)+')');
+      return;
+    }
+    row[field]=value===''?'':String(num);
+  }else{
+    row[field]=value;
+  }
+  dbSave(key); renderEntryContent();
+}
+
 function renderExpRow(c){
   const r=document.createElement('div'); r.className='exp-row';
   r.innerHTML=`<button class="btn-ghost" onclick="clearMonth()">🗑 Clear Readings</button>
@@ -1239,6 +1338,11 @@ function clearMonth(){
   if(!activeKey||!confirm('Clear all readings for this month?'))return;
   const d=months[activeKey];
   ['water','elec'].forEach(t=>d[t].forEach(r=>{r.opening='';r.closing='';r.notes='';r.flagLeak=false;}));
+  if(d.extraReadings){
+    ['water','elec'].forEach(t=>{
+      Object.values(d.extraReadings[t]||{}).forEach(r=>{r.opening='';r.closing='';r.notes='';});
+    });
+  }
   dbSave(activeKey); renderEntryContent(); showToast('Readings cleared','#C55A11');
 }
 
@@ -1276,6 +1380,7 @@ function importReadings(input){
             units:units||65,waterRate:wr,elecRate:er,
             water:Array.from({length:units||65},(_,i)=>({unit:i+1,opening:'',closing:'',flagLeak:false,notes:''})),
             elec: Array.from({length:units||65},(_,i)=>({unit:i+1,opening:'',closing:'',notes:''})),
+            extraReadings:{water:{},elec:{}},
             billing:{waterUsage:'',waterAmount:'',elecUsage:'',elecAmount:'',invoiceNo:'',invoiceDate:''}
           };
         }
@@ -2229,7 +2334,8 @@ function githubBackupPayload(){
     app:'meter-readings-app',
     months,
     units,
-    propSettings
+    propSettings,
+    extraItems:getExtraItems()
   };
 }
 
@@ -2379,6 +2485,8 @@ async function restoreGithubBackup(){
 
     propSettings={...propSettings,...payload.propSettings};
     savePropToDB();
+
+    if(Array.isArray(payload.extraItems)) setExtraItems(payload.extraItems);
 
     updateHeaderComplex();
     renderTabs();
@@ -3093,6 +3201,114 @@ function clearUnitForm(){
   document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
   document.getElementById('uoSaveBtn').textContent='Save Unit';
   editingUnit=null;
+}
+
+// ═══════════════ EXTRA METER ITEMS ═══════════════
+const EXTRA_ITEMS_KEY='mra_extra_meter_items';
+
+function getExtraItems(){
+  try{return JSON.parse(localStorage.getItem(EXTRA_ITEMS_KEY)||'[]');}
+  catch{return [];}
+}
+
+function setExtraItems(arr){
+  localStorage.setItem(EXTRA_ITEMS_KEY,JSON.stringify(arr));
+}
+
+function ensureExtraStore(monthKey){
+  const d=months[monthKey];
+  if(!d)return null;
+  if(!d.extraReadings||typeof d.extraReadings!=='object') d.extraReadings={water:{},elec:{}};
+  if(!d.extraReadings.water) d.extraReadings.water={};
+  if(!d.extraReadings.elec) d.extraReadings.elec={};
+  return d.extraReadings;
+}
+
+function getExtraRows(monthKey,type){
+  const defs=getExtraItems().filter(i=>type==='water'?i.applyWater:i.applyElec);
+  return defs.map(def=>{
+    const row=getExtraItemRow(monthKey,type,def.id);
+    if(row) row.itemName=def.name;
+    return row;
+  }).filter(Boolean);
+}
+
+function getExtraItemRow(monthKey,type,itemId){
+  const store=ensureExtraStore(monthKey);
+  if(!store)return null;
+  if(!store[type][itemId]) store[type][itemId]={extraItemId:itemId,opening:'',closing:'',notes:''};
+  return store[type][itemId];
+}
+
+function renderExtraItemsTable(){
+  const tbody=document.getElementById('extraItemsBody');
+  if(!tbody)return;
+  const items=getExtraItems();
+  if(!items.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No extra meter items defined</td></tr>';
+    return;
+  }
+  tbody.innerHTML=items.map(it=>`<tr>
+    <td style="font-weight:600">${it.name}</td>
+    <td style="text-align:center">${it.applyWater?'✔':'—'}</td>
+    <td style="text-align:center">${it.applyElec?'✔':'—'}</td>
+    <td style="font-size:.74rem;color:var(--muted)">${it.notes||''}</td>
+    <td style="display:flex;gap:.4rem">
+      <button onclick="editExtraItem('${it.id}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
+      <button onclick="deleteExtraItem('${it.id}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Del</button>
+    </td>
+  </tr>`).join('');
+}
+
+function saveExtraItem(){
+  const name=(document.getElementById('extraItemName')?.value||'').trim();
+  const notes=(document.getElementById('extraItemNotes')?.value||'').trim();
+  const applyWater=Boolean(document.getElementById('extraItemWater')?.checked);
+  const applyElec=Boolean(document.getElementById('extraItemElec')?.checked);
+  const editId=(document.getElementById('extraItemEditId')?.value||'').trim();
+  if(!name){showToast('Item name is required','#C55A11');return;}
+  if(!applyWater&&!applyElec){showToast('Select Water, Electricity, or both','#C55A11');return;}
+
+  const items=getExtraItems();
+  if(editId){
+    const idx=items.findIndex(i=>i.id===editId);
+    if(idx>=0) items[idx]={...items[idx],name,notes,applyWater,applyElec};
+  }else{
+    items.push({id:'item_'+Date.now().toString(36),name,notes,applyWater,applyElec});
+  }
+  setExtraItems(items);
+  renderExtraItemsTable();
+  clearExtraItemForm();
+  if(activeKey) renderEntryContent();
+  showToast(editId?'Extra item updated':'Extra item added');
+}
+
+function editExtraItem(id){
+  const item=getExtraItems().find(i=>i.id===id);
+  if(!item)return;
+  const set=(el,v)=>{const n=document.getElementById(el);if(n)n.value=v||'';};
+  set('extraItemName',item.name);
+  set('extraItemNotes',item.notes);
+  document.getElementById('extraItemWater').checked=Boolean(item.applyWater);
+  document.getElementById('extraItemElec').checked=Boolean(item.applyElec);
+  document.getElementById('extraItemEditId').value=id;
+  document.getElementById('extraItemFormTitle').textContent='Edit Extra Meter Item';
+}
+
+function deleteExtraItem(id){
+  if(!confirm('Delete this extra meter item? Existing readings for it in past months will remain but no longer display.'))return;
+  const items=getExtraItems().filter(i=>i.id!==id);
+  setExtraItems(items);
+  renderExtraItemsTable();
+  if(activeKey) renderEntryContent();
+  showToast('Extra item deleted','#C55A11');
+}
+
+function clearExtraItemForm(){
+  ['extraItemName','extraItemNotes','extraItemEditId'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const w=document.getElementById('extraItemWater'); if(w)w.checked=false;
+  const e=document.getElementById('extraItemElec'); if(e)e.checked=false;
+  const t=document.getElementById('extraItemFormTitle'); if(t)t.textContent='Add Extra Meter Item';
 }
 
 function renderUnitsTable(){
