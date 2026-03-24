@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supabase Connection Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:#f4f6f8;padding:24px;color:#222}
+    h1{font-size:1.4rem;margin-bottom:20px}
+    #summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+    .badge{padding:6px 14px;border-radius:20px;font-size:.85rem;font-weight:600}
+    .pass{background:#d1fae5;color:#065f46}
+    .fail{background:#fee2e2;color:#991b1b}
+    .pending{background:#e0e7ff;color:#3730a3}
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+    th,td{padding:10px 14px;text-align:left;font-size:.88rem;border-bottom:1px solid #e5e7eb}
+    th{background:#f9fafb;font-weight:600;color:#374151}
+    tr:last-child td{border-bottom:none}
+    .status-ok::before{content:'✅ '}
+    .status-fail::before{content:'❌ '}
+    .status-run::before{content:'⏳ '}
+    pre{font-size:.78rem;white-space:pre-wrap;word-break:break-all;color:#6b7280;margin-top:4px}
+  </style>
+</head>
+<body>
+  <h1>Supabase Connection Test</h1>
+  <div id="summary">
+    <span class="badge pending" id="badge-pass">Passed: 0</span>
+    <span class="badge pending" id="badge-fail">Failed: 0</span>
+    <span class="badge pending" id="badge-run">Running…</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Test</th><th>Status</th><th>Detail</th></tr>
+    </thead>
+    <tbody id="results"></tbody>
+  </table>
+
+<script>
+// ─── Config ────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://hbfxodedseidrtlyptan.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_O3MktwED0q5maChRWe4krA_uhj9RAO7';
+
+// ─── State ─────────────────────────────────────────────────
+let passed = 0, failed = 0;
+const tbody = document.getElementById('results');
+
+function addRow(name) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${tbody.children.length + 1}</td>
+    <td>${name}</td>
+    <td class="status-run" id="s-${tbody.children.length}">Running</td>
+    <td><pre id="d-${tbody.children.length}"></pre></td>`;
+  tbody.appendChild(tr);
+  const idx = tbody.children.length - 1;
+  return {
+    ok(msg)  { setRow(idx,'ok', msg); },
+    fail(msg){ setRow(idx,'fail',msg); }
+  };
+}
+
+function setRow(idx, st, msg) {
+  const sc = document.getElementById(`s-${idx}`);
+  const dc = document.getElementById(`d-${idx}`);
+  if (st === 'ok')   { sc.className='status-ok';   sc.textContent='Pass'; passed++; }
+  else               { sc.className='status-fail';  sc.textContent='Fail'; failed++; }
+  dc.textContent = typeof msg === 'object' ? JSON.stringify(msg,null,2) : msg;
+  updateBadges();
+}
+
+function updateBadges() {
+  document.getElementById('badge-pass').textContent = `Passed: ${passed}`;
+  document.getElementById('badge-pass').className = 'badge ' + (passed ? 'pass' : 'pending');
+  document.getElementById('badge-fail').textContent = `Failed: ${failed}`;
+  document.getElementById('badge-fail').className = 'badge ' + (failed ? 'fail' : 'pending');
+}
+
+function done() {
+  const b = document.getElementById('badge-run');
+  b.textContent = 'Done';
+  b.className = 'badge ' + (failed === 0 ? 'pass' : 'fail');
+}
+
+// ─── Run tests ─────────────────────────────────────────────
+(async () => {
+  // 1. Client init
+  let sb;
+  {
+    const r = addRow('Create Supabase client');
+    try {
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      r.ok(`Client created — URL: ${SUPABASE_URL}`);
+    } catch(e) {
+      r.fail(String(e));
+      done(); return;   // nothing else will work
+    }
+  }
+
+  // helper
+  async function test(label, fn) {
+    const r = addRow(label);
+    try { r.ok(await fn()); }
+    catch(e) { r.fail(String(e)); }
+  }
+
+  // 2. months — select
+  await test('months → SELECT', async () => {
+    const {data, error} = await sb.from('months').select('key').limit(3);
+    if (error) throw error.message;
+    return `${data.length} row(s) returned`;
+  });
+
+  // 3. months — upsert
+  await test('months → UPSERT (test row)', async () => {
+    const testKey = '__connection_test__';
+    const {error} = await sb.from('months').upsert({key: testKey, data: {ts: Date.now()}});
+    if (error) throw error.message;
+    return `Upserted key="${testKey}"`;
+  });
+
+  // 4. months — delete test row (cleanup)
+  await test('months → DELETE test row', async () => {
+    const {error} = await sb.from('months').delete().eq('key','__connection_test__');
+    if (error) throw error.message;
+    return 'Test row deleted';
+  });
+
+  // 5. prop_settings — select
+  await test('prop_settings → SELECT', async () => {
+    const {data, error} = await sb.from('prop_settings').select('id').limit(3);
+    if (error) throw error.message;
+    return `${data.length} row(s) returned`;
+  });
+
+  // 6. prop_settings — upsert
+  await test('prop_settings → UPSERT', async () => {
+    const {error} = await sb.from('prop_settings').upsert({id:'main', data:{ts: Date.now()}});
+    if (error) throw error.message;
+    return 'Upserted id="main"';
+  });
+
+  // 7. unit_owners — select
+  await test('unit_owners → SELECT', async () => {
+    const {data, error} = await sb.from('unit_owners').select('unit').limit(3);
+    if (error) throw error.message;
+    return `${data.length} row(s) returned`;
+  });
+
+  // 8. unit_owners — upsert
+  await test('unit_owners → UPSERT (unit=0 test)', async () => {
+    const {error} = await sb.from('unit_owners').upsert({unit: 0, data:{test: true}});
+    if (error) throw error.message;
+    return 'Upserted unit=0';
+  });
+
+  // 9. unit_owners — delete test row
+  await test('unit_owners → DELETE unit=0 test row', async () => {
+    const {error} = await sb.from('unit_owners').delete().eq('unit', 0);
+    if (error) throw error.message;
+    return 'Test row deleted';
+  });
+
+  done();
+})();
+</script>
+</body>
+</html>
