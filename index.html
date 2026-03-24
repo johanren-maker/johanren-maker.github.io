@@ -32,6 +32,10 @@ function switchBillingTab(tab){
 // ══════════════════════════════════════════
 // UNIT INFO POPUP
 // ══════════════════════════════════════════
+function getUnitOwner(unitNum){
+  return units[String(unitNum)]||null;
+}
+
 function showUnitInfo(unitNum, e){
   e.stopPropagation();
   const u=getUnitOwner(unitNum);
@@ -233,7 +237,7 @@ function emailInvoice(){
   const {wUsage,eUsage,wCharge,eCharge,total,dueDate,fmtDate,invNo,ownerName}=invData(previewKey,previewUnit);
   const complexName=ps('complex')||'Utility Management';
   const subject='Utility Invoice '+invNo+' — Unit '+previewUnit+' — '+d.label;
-  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+wUsage.toFixed(4)+' kl @ R'+d.waterRate+'/kl = R'+wCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nElectricity: '+eUsage.toFixed(0)+' kWh @ R'+d.elecRate+'/kWh = R'+eCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nTotal Due: R'+total.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
+  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+Math.round(wUsage)+' kl @ R'+d.waterRate+'/kl = R'+fmt(wCharge)+'\nElectricity: '+Math.round(eUsage)+' kWh @ R'+d.elecRate+'/kWh = R'+fmt(eCharge)+'\nTotal Due: R'+fmt(total)+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
   window.open('mailto:'+emails.join(',')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
   showToast('Email client opened for '+emails.join(', '));
 }
@@ -1913,7 +1917,7 @@ function renderSumStrip(c){
   const s=document.createElement('div'); s.className='sum-strip';
   s.innerHTML=`
     <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
-      <div class="sv">${tU.toFixed(activeType==='water'?4:0)}</div><div class="ss">${unit} this month</div></div>
+      <div class="sv">${tU}}</div><div class="ss">${unit} this month</div></div>
     <div class="stat"><div class="sl">💰 Total Charge</div>
       <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
     <div class="stat"><div class="sl">📋 Captured</div>
@@ -1962,7 +1966,7 @@ function renderDataTable(c){
         onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value,this)"></td>
       <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value,this)"></td>
-      <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
+      <td class="n"><span class="uv">${u!==null?u}:'—'}</span></td>
       <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
       <td>${isW?`<select onchange="upRow('${activeKey}','${activeType}',${idx},'flagLeak',this.value==='leak')">
         <option value="">Normal</option>
@@ -1974,7 +1978,7 @@ function renderDataTable(c){
         onchange="upRow('${activeKey}','${activeType}',${idx},'notes',this.value)">`}</td>`;
     tbody.appendChild(tr);
   });
-  document.getElementById('ftU').textContent=tU.toFixed(dp);
+  document.getElementById('ftU').textContent=tU};
   document.getElementById('ftC').textContent='R'+fmt(tC);
 }
 
@@ -2069,7 +2073,7 @@ function updateRowCalcs(key,type,idx){
   if(!trs[idx])return;
   const tds=trs[idx].querySelectorAll('td');
   // td[3]=usage, td[4]=charge
-  if(tds[3]) tds[3].innerHTML='<span class="uv">'+(usage!==null?usage.toFixed(dp):'—')+'</span>';
+  if(tds[3]) tds[3].innerHTML='<span class="uv">'+(usage!==null?usage}:'—')+'</span>';
   if(tds[4]) tds[4].innerHTML='<span class="cv">'+(charge!==null?'R'+fmt(charge):'—')+'</span>';
 
   // Update footer totals
@@ -2080,7 +2084,7 @@ function updateRowCalcs(key,type,idx){
   });
   const ftU=document.getElementById('ftU');
   const ftC=document.getElementById('ftC');
-  if(ftU) ftU.textContent=tU.toFixed(dp);
+  if(ftU) ftU.textContent=tU};
   if(ftC) ftC.textContent='R'+fmt(tC);
 
   // Update summary strip numbers
@@ -2103,7 +2107,7 @@ function renderSumStripInPlace(key,type){
   const strip=document.querySelector('.sum-strip');
   if(!strip)return;
   const stats=strip.querySelectorAll('.stat');
-  if(stats[0]) stats[0].querySelector('.sv').textContent=tU.toFixed(dp);
+  if(stats[0]) stats[0].querySelector('.sv').textContent=tU};
   if(stats[1]) stats[1].querySelector('.sv').textContent='R'+fmt(tC);
   if(stats[2]) stats[2].querySelector('.sv').textContent=filled+'/'+d.units;
   if(stats[3]&&type==='water'){
@@ -2236,9 +2240,15 @@ function upBilling(key,field,value){months[key].billing[field]=value;dbSave(key)
 
 function calcTotals(key,type){
   const d=months[key];
+  if(!d||!d[type])return {usage:0,charge:0};
   return d[type].reduce((s,r)=>{
     const o=parseFloat(r.opening),c=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(c)&&c>=o){s.usage+=c-o;s.charge+=(c-o)*(type==='water'?d.waterRate:d.elecRate);}
+    if(!isNaN(o)&&!isNaN(c)&&c>=o){
+      const usage=c-o;
+      const rate=type==='water'?d.waterRate:d.elecRate;
+      s.usage+=usage;
+      s.charge+=usage*rate;
+    }
     return s;
   },{usage:0,charge:0});
 }
@@ -2258,18 +2268,18 @@ function buildRecovery(key){
       <div class="rc-label">💧 Water Recovery — ${d.label}</div>
       <div class="rc-type">${rl(wD)}</div>
       <div class="rc-val">${wD>=0?'+':'−'}R${fmt(Math.abs(wD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(4)} kl)<br>
-        Municipal: <strong>R${fmt(wM)}</strong> (${wUM||'?'} kl)<br>
-        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(4)} kl</div>
+      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${Math.round(wT.usage)} kl)<br>
+        Municipal: <strong>R${fmt(wM)}</strong> (${Math.round(wUM)||'?'} kl)<br>
+        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${Math.round(wT.usage-wUM)} kl</div>
       ${wM>0?`<div class="rc-pct">${pct(wD,wM)}</div>`:''}
     </div>
     <div class="rec-card ${rc(eD)}">
       <div class="rc-label">⚡ Electricity Recovery — ${d.label}</div>
       <div class="rc-type">${rl(eD)}</div>
       <div class="rc-val">${eD>=0?'+':'−'}R${fmt(Math.abs(eD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${eT.usage.toFixed(0)} kWh)<br>
-        Municipal: <strong>R${fmt(eM)}</strong> (${eUM||'?'} kWh)<br>
-        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${(eT.usage-eUM).toFixed(0)} kWh</div>
+      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${Math.round(eT.usage)} kWh)<br>
+        Municipal: <strong>R${fmt(eM)}</strong> (${Math.round(eUM)||'?'} kWh)<br>
+        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${Math.round(eT.usage-eUM)} kWh</div>
       ${eM>0?`<div class="rc-pct">${pct(eD,eM)}</div>`:''}
     </div>`;
   return strip;
@@ -2369,9 +2379,9 @@ function renderCmpResults(){
       const dC=chA!==null&&chB!==null?chB-chA:null;
       const tr=document.createElement('tr');
       tr.innerHTML=`<td class="ul">Unit ${i+1}</td>
-        <td class="n val-a">${uA!==null?uA.toFixed(dp):'—'}</td>
-        <td class="n val-b">${uB!==null?uB.toFixed(dp):'—'}</td>
-        <td class="n ${dU===null?'':dU>0?'delta-neg':'delta-pos'}">${dU!==null?(dU>=0?'+':'')+dU.toFixed(dp):'—'}</td>
+        <td class="n val-a">${uA!==null?uA}:'—'}</td>
+        <td class="n val-b">${uB!==null?uB}:'—'}</td>
+        <td class="n ${dU===null?'':dU>0?'delta-neg':'delta-pos'}">${dU!==null?(dU>=0?'+':'')+dU}:'—'}</td>
         <td class="n val-a">${chA!==null?'R'+fmt(chA):'—'}</td>
         <td class="n val-b">${chB!==null?'R'+fmt(chB):'—'}</td>
         <td class="n ${dC===null?'':dC>0?'delta-neg':'delta-pos'}">${dC!==null?(dC>=0?'+R':'−R')+fmt(Math.abs(dC)):'—'}</td>`;
@@ -2512,7 +2522,7 @@ function renderDashboard(){
   const ic1=document.createElement('div'); ic1.className='ins-card';
   ic1.innerHTML=`<h4>💧 Top 5 Water Consumers</h4>${wTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(4)} kl</span></div>`
+    <span class="irv ${u.usage>20?'amber':''}">${u.usage} kl</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic1);
 
   const eTop=[]; keys.forEach(key=>{months[key].elec.forEach(r=>{
@@ -2523,7 +2533,7 @@ function renderDashboard(){
   const ic2=document.createElement('div'); ic2.className='ins-card';
   ic2.innerHTML=`<h4>⚡ Top 5 Electricity Consumers</h4>${eTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>500?'amber':''}">${u.usage.toFixed(0)} kWh</span></div>`
+    <span class="irv ${u.usage>500?'amber':''}">${u.usage} kWh</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic2);
 
   const leakList=[]; keys.forEach(key=>{months[key].water.forEach(r=>{
@@ -2804,8 +2814,8 @@ function buildInvoiceHTML(key,unitNum){
         <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
       </div>
       <div class="chips">
-        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(4)} kl</div></div>
-        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
+        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${Math.round(wUsage)} kl</div></div>
+        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${Math.round(eUsage)} kWh</div></div>
         <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
       <table>
@@ -2815,17 +2825,17 @@ function buildInvoiceHTML(key,unitNum){
         <tbody>
           <tr>
             <td>Water Consumption</td>
-            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(4):'--'}</td>
-            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(4):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(4)} kl</td>
+            <td style="text-align:right">${!isNaN(wO)?Math.round(wO):'--'}</td>
+            <td style="text-align:right">${!isNaN(wC)?Math.round(wC):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${Math.round(wUsage)} kl</td>
             <td style="text-align:right">R${d.waterRate}/kl</td>
             <td style="text-align:right;font-weight:700">R${fmt(wCharge)}</td>
           </tr>
           <tr>
             <td>Electricity Consumption</td>
-            <td style="text-align:right">${!isNaN(eO)?eO.toFixed(0):'--'}</td>
-            <td style="text-align:right">${!isNaN(eC)?eC.toFixed(0):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${eUsage.toFixed(0)} kWh</td>
+            <td style="text-align:right">${!isNaN(eO)?Math.round(eO):'--'}</td>
+            <td style="text-align:right">${!isNaN(eC)?Math.round(eC):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${Math.round(eUsage)} kWh</td>
             <td style="text-align:right">R${d.elecRate}/kWh</td>
             <td style="text-align:right;font-weight:700">R${fmt(eCharge)}</td>
           </tr>
@@ -2907,8 +2917,8 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
     doc.setFont('helvetica','bold'); doc.setFontSize(9);
     doc.text(value,lx+3,ly+5);
   }
-  chip(15,y,'WATER USAGE',wUsage.toFixed(4)+' kl',46,117,182);
-  chip(70,y,'ELECTRICITY',eUsage.toFixed(0)+' kWh',197,90,17);
+  chip(15,y,'WATER USAGE',Math.round(wUsage)+' kl',46,117,182);
+  chip(70,y,'ELECTRICITY',Math.round(eUsage)+' kWh',197,90,17);
   chip(125,y,'TOTAL DUE','R'+fmt(total),31,56,100);
   y+=20;
 
@@ -2940,11 +2950,11 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
   }
 
   tRow('Water Consumption',
-    !isNaN(wO)?wO.toFixed(4):'--', !isNaN(wC)?wC.toFixed(4):'--',
-    wUsage.toFixed(4)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
+    !isNaN(wO)?Math.round(wO):'--', !isNaN(wC)?Math.round(wC):'--',
+    Math.round(wUsage)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
   tRow('Electricity Consumption',
-    !isNaN(eO)?eO.toFixed(0):'--', !isNaN(eC)?eC.toFixed(0):'--',
-    eUsage.toFixed(0)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
+    !isNaN(eO)?Math.round(eO):'--', !isNaN(eC)?Math.round(eC):'--',
+    Math.round(eUsage)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
 
   if(note){
     y+=2; doc.setFontSize(7.5); doc.setTextColor(192,0,0); doc.setFont('helvetica','italic');
@@ -3240,7 +3250,10 @@ function exportExcel(){
 }
 
 // ═══════════════ HELPERS ═══════════════
-function fmt(n){return n.toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmt(n){
+  if(isNaN(n)||n===null||n===undefined)return '0';
+  return Math.round(n).toLocaleString('en-ZA');
+}
 function showToast(msg,color='var(--green)'){
   const t=document.getElementById('toast');t.textContent=msg;t.style.background=color;
   t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);
