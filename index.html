@@ -443,12 +443,6 @@ input[type=file]{display:none}
 #unitsTable td input:hover{border-color:var(--border);background:var(--off)}
 #unitsTable td input:focus{outline:none;border-color:var(--blue);background:#fff;
   box-shadow:0 0 0 3px rgba(46,117,182,.1)}
-
-/* READING VALIDATION */
-td input.input-error{border-color:var(--red)!important;background:#FFF5F5!important;
-  box-shadow:0 0 0 3px rgba(192,0,0,.12)!important;}
-.val-msg{font-size:.65rem;color:var(--red);font-weight:600;margin-top:.15rem;display:block;
-  white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -470,7 +464,7 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
   <div class="header-nav" id="mainNav">
     <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('units',this)">Units</button>
-    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('billing',this)">Billing</button>
+    <button class="nav-btn" data-roles="admin,billing" onclick="showPage('billing',this)">Billing</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-btn" data-roles="admin,billing" onclick="showPage('invoices',this)">Invoices</button>
     <button class="nav-btn" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
@@ -672,7 +666,7 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
   <div class="admin-grid">
     <div class="admin-card">
       <h3>&#x1F4E4; Export Database</h3>
-      <p>Download a complete backup of <strong>all data</strong> — months, readings, billing, unit owners, property settings and user accounts — as a single JSON file.</p>
+      <p>Download a full backup of all months, readings and billing data as a JSON file. Use this to transfer data between browsers or computers.</p>
       <div class="btn-row">
         <button class="btn-exp" onclick="exportDB()">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5h10M7 2v7M4.5 6l2.5 3L9.5 6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -682,7 +676,7 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     </div>
     <div class="admin-card">
       <h3>📥 Import Database</h3>
-      <p>Restore from a previously exported backup JSON. Restores months, unit owners and property settings. You will be asked separately whether to restore user accounts.</p>
+      <p>Restore from a previously exported JSON backup. This will <strong>merge</strong> with existing data — existing months will be overwritten if the same key exists.</p>
       <div class="btn-row">
         <button class="btn-exp blue" onclick="document.getElementById('importDBFile').click()">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M7 12V5M4.5 8l2.5-3L9.5 8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -785,16 +779,16 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
 <!-- MOBILE BOTTOM NAV -->
 <nav id="mobileNavBar" role="navigation" aria-label="Mobile navigation">
   <button class="mob-nav-btn active" data-page="data-entry" onclick="mobNav('data-entry',this)">
-    <span class="mn-icon">📋</span>Readings
+    <span class="mn-icon">📋</span>Entry
   </button>
-  <button class="mob-nav-btn" data-page="units" onclick="mobNav('units',this)" data-roles="admin,entry,billing,readonly">
-    <span class="mn-icon">🏠</span>Units
-  </button>
-  <button class="mob-nav-btn" data-page="billing" onclick="mobNav('billing',this)" data-roles="admin,entry,billing,readonly">
+  <button class="mob-nav-btn" data-page="billing" onclick="mobNav('billing',this)" data-roles="admin,billing">
     <span class="mn-icon">🏛</span>Billing
   </button>
-  <button class="mob-nav-btn" data-page="dashboard" onclick="mobNav('dashboard',this)" data-roles="admin,entry,billing,readonly">
+  <button class="mob-nav-btn" data-page="dashboard" onclick="mobNav('dashboard',this)">
     <span class="mn-icon">📊</span>Dash
+  </button>
+  <button class="mob-nav-btn" data-page="compare" onclick="mobNav('compare',this)">
+    <span class="mn-icon">🔀</span>Compare
   </button>
   <button class="mob-nav-btn" data-page="invoices" onclick="mobNav('invoices',this)" data-roles="admin,billing">
     <span class="mn-icon">🧾</span>Invoices
@@ -820,16 +814,10 @@ function openDB(){
     const req=indexedDB.open(DB_NAME,DB_VER);
     req.onupgradeneeded=e=>{
       const d=e.target.result;
-      // Always check before creating — handles upgrades from any previous version
-      const stores={
-        [STORE]:{keyPath:'key'},
-        propSettings:{keyPath:'key'},
-        users:{keyPath:'username'},
-        unitOwners:{keyPath:'unit'}
-      };
-      Object.entries(stores).forEach(([name,opts])=>{
-        if(!d.objectStoreNames.contains(name)) d.createObjectStore(name,opts);
-      });
+      if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'key'});
+      if(!d.objectStoreNames.contains('propSettings')) d.createObjectStore('propSettings',{keyPath:'key'});
+      if(!d.objectStoreNames.contains('users')) d.createObjectStore('users',{keyPath:'username'});
+      if(!d.objectStoreNames.contains('unitOwners')) d.createObjectStore('unitOwners',{keyPath:'unit'});
     };
     req.onsuccess=e=>{db=e.target.result;res(db);};
     req.onerror=e=>rej(e.target.error);
@@ -837,13 +825,11 @@ function openDB(){
 }
 function dbSave(key){
   if(!db)return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
-  catch(e){ console.error('dbSave failed',key,e); }
+  db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]});
 }
 function dbDelete(key){
   if(!db)return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
-  catch(e){ console.error('dbDelete failed',key,e); }
+  db.transaction(STORE,'readwrite').objectStore(STORE).delete(key);
 }
 function dbLoadAll(){
   return new Promise((res,rej)=>{
@@ -906,7 +892,6 @@ init();
 
 // ═══════════════ PAGE NAV ═══════════════
 function showPage(id,btn){
-  syncMobileNav(id);
   // Role guard — skip if not logged in yet
   if(currentUser){
     const allowed={
@@ -1058,9 +1043,9 @@ function renderDataTable(c){
     if(u!==null){tU+=u;tC+=ch;}
     tr.innerHTML=`<td class="ul" style="white-space:nowrap">Unit ${row.unit}<button onclick="showUnitInfo(${row.unit},event)" title="Owner info" style="margin-left:.4rem;background:none;border:1.5px solid var(--border);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:.6rem;color:var(--blue);font-weight:700;line-height:1;padding:0;vertical-align:middle">i</button></td>
       <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.opening}"
-        onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value,this)"></td>
+        onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value)"></td>
       <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
-        onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value,this)"></td>
+        onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value)"></td>
       <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
       <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
       <td>${isW?`<select onchange="upRow('${activeKey}','${activeType}',${idx},'flagLeak',this.value==='leak')">
@@ -1077,138 +1062,18 @@ function renderDataTable(c){
   document.getElementById('ftC').textContent='R'+fmt(tC);
 }
 
-function upRow(key,type,idx,field,value,inputEl){
+function upRow(key,type,idx,field,value){
   if(currentUser&&currentUser.role==='readonly'){showToast('Read-only access','#C55A11');return;}
-
   if(field==='flagLeak'){
     months[key][type][idx].flagLeak=(value==='leak');
     if(value&&value!=='leak') months[key][type][idx].notes=
       value==='meter'?'Faulty meter':value==='access'?'No access':'Disputed reading';
     else if(value==='leak') months[key][type][idx].notes='Possible leak';
     else months[key][type][idx].notes='';
-    dbSave(key); renderEntryContent(); return;
+  } else {
+    months[key][type][idx][field]=value;
   }
-
-  // ── Numeric reading validation ──
-  if(field==='opening'||field==='closing'){
-    const num=parseFloat(value);
-    const row=months[key][type][idx];
-    const otherField=field==='opening'?'closing':'opening';
-    const otherVal=parseFloat(row[otherField]);
-
-    // Clear any previous error on this input
-    if(inputEl){
-      inputEl.classList.remove('input-error');
-      const prev=inputEl.parentNode.querySelector('.val-msg');
-      if(prev) prev.remove();
-    }
-
-    if(value!==''&&isNaN(num)){
-      showValidationError(inputEl,'Must be a number');
-      return;
-    }
-
-    if(!isNaN(num)&&!isNaN(otherVal)){
-      if(field==='closing'&&num<otherVal){
-        showValidationError(inputEl,'Closing ('+num.toFixed(4)+') cannot be less than opening ('+otherVal.toFixed(4)+')');
-        return;
-      }
-      if(field==='opening'&&num>otherVal){
-        showValidationError(inputEl,'Opening ('+num.toFixed(4)+') cannot exceed closing ('+otherVal.toFixed(4)+')');
-        return;
-      }
-    }
-
-    // Clear error on the paired input now that this one is valid
-    if(inputEl){
-      const row=inputEl.closest('tr');
-      if(row){
-        const otherInputs=row.querySelectorAll('td input[type=number]');
-        otherInputs.forEach(el=>{
-          el.classList.remove('input-error');
-          const msg=el.parentNode.querySelector('.val-msg');
-          if(msg) msg.remove();
-        });
-      }
-    }
-  }
-
-  months[key][type][idx][field]=value;
-  dbSave(key);
-  // Only re-render the calculated columns (usage + charge) — not the whole table
-  // to avoid losing focus. Update in place instead.
-  updateRowCalcs(key,type,idx);
-}
-
-function showValidationError(inputEl, msg){
-  if(!inputEl)return;
-  inputEl.classList.add('input-error');
-  const existing=inputEl.parentNode.querySelector('.val-msg');
-  if(existing) existing.remove();
-  const span=document.createElement('span');
-  span.className='val-msg'; span.textContent=msg;
-  inputEl.parentNode.appendChild(span);
-  inputEl.focus();
-}
-
-function updateRowCalcs(key,type,idx){
-  // Update usage and charge display in-place without full re-render
-  const d=months[key];
-  const row=d[type][idx];
-  const rate=type==='water'?d.waterRate:d.elecRate;
-  const dp=type==='water'?4:0;
-  const o=parseFloat(row.opening), c=parseFloat(row.closing);
-  const usage=(!isNaN(o)&&!isNaN(c)&&c>=o)?c-o:null;
-  const charge=usage!==null?usage*rate:null;
-
-  // Find the right row in the DOM by data-idx
-  const tBody=document.getElementById('tbd');
-  if(!tBody)return;
-  const trs=tBody.querySelectorAll('tr');
-  if(!trs[idx])return;
-  const tds=trs[idx].querySelectorAll('td');
-  // td[3]=usage, td[4]=charge
-  if(tds[3]) tds[3].innerHTML='<span class="uv">'+(usage!==null?usage.toFixed(dp):'—')+'</span>';
-  if(tds[4]) tds[4].innerHTML='<span class="cv">'+(charge!==null?'R'+fmt(charge):'—')+'</span>';
-
-  // Update footer totals
-  let tU=0,tC=0;
-  d[type].forEach(r=>{
-    const ro=parseFloat(r.opening),rc=parseFloat(r.closing);
-    if(!isNaN(ro)&&!isNaN(rc)&&rc>=ro){const u=rc-ro;tU+=u;tC+=u*rate;}
-  });
-  const ftU=document.getElementById('ftU');
-  const ftC=document.getElementById('ftC');
-  if(ftU) ftU.textContent=tU.toFixed(dp);
-  if(ftC) ftC.textContent='R'+fmt(tC);
-
-  // Update summary strip numbers
-  renderSumStripInPlace(key,type);
-}
-
-function renderSumStripInPlace(key,type){
-  // Re-render just the stat cards without blowing up the table
-  const d=months[key];
-  const rows=type==='water'?d.water:d.elec;
-  const rate=type==='water'?d.waterRate:d.elecRate;
-  const unit=type==='water'?'kl':'kWh';
-  const dp=type==='water'?4:0;
-  let tU=0,tC=0,filled=0,leaks=0;
-  rows.forEach(r=>{
-    const o=parseFloat(r.opening),c=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(c)&&c>=o){const u=c-o;tU+=u;tC+=u*rate;filled++;}
-    if(type==='water'&&r.flagLeak)leaks++;
-  });
-  const strip=document.querySelector('.sum-strip');
-  if(!strip)return;
-  const stats=strip.querySelectorAll('.stat');
-  if(stats[0]) stats[0].querySelector('.sv').textContent=tU.toFixed(dp);
-  if(stats[1]) stats[1].querySelector('.sv').textContent='R'+fmt(tC);
-  if(stats[2]) stats[2].querySelector('.sv').textContent=filled+'/'+d.units;
-  if(stats[3]&&type==='water'){
-    stats[3].querySelector('.sv').textContent=leaks;
-    stats[3].className='stat'+(leaks>0?' warn':'');
-  }
+  dbSave(key); renderEntryContent();
 }
 
 function renderExpRow(c){
@@ -2147,110 +2012,32 @@ function renderAdminStatus(){
     </div>`;
 }
 
-async function exportDB(){
-  // Collect ALL stores for a complete backup
-  const allUsers=await dbGetAllUsers();
-  const allUnits=await dbLoadAllUnits();
-
-  const backup={
-    _version:4,
-    _exported:new Date().toISOString(),
-    _app:'MeterReadingsDB',
-    months,
-    propSettings,
-    unitOwners:Object.values(units),
-    users:allUsers.map(u=>({...u})) // include hashed passwords for full restore
-  };
-
-  const data=JSON.stringify(backup,null,2);
+function exportDB(){
+  const data=JSON.stringify(months,null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`MeterReadings_Backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download=`MeterReadingsDB_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
-  URL.revokeObjectURL(a.href);
-
-  const counts=[
-    Object.keys(months).length+' months',
-    allUnits.length+' units',
-    allUsers.length+' users',
-    'property settings'
-  ].join(', ');
-  showToast('Backup saved: '+counts);
+  showToast('✓ Database exported');
 }
 
 function importDB(input){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
-  reader.onload=async e=>{
+  reader.onload=e=>{
     try{
-      const backup=JSON.parse(e.target.result);
-
-      // Support both old format (plain months object) and new full backup format
-      const isFullBackup=backup._app==='MeterReadingsDB';
-      const monthsData=isFullBackup?backup.months:backup;
-
-      // ── Restore months ──
-      let mCount=0;
-      if(monthsData&&typeof monthsData==='object'){
-        Object.entries(monthsData).forEach(([key,val])=>{
-          if(key.startsWith('_'))return; // skip metadata keys
-          months[key]=val; dbSave(key); mCount++;
-        });
-      }
-
-      // ── Restore property settings ──
-      if(isFullBackup&&backup.propSettings){
-        Object.assign(propSettings,backup.propSettings);
-        savePropToDB();
-        updateHeaderComplex();
-        renderPropDisplayGrid();
-      }
-
-      // ── Restore unit owners ──
-      let uCount=0;
-      if(isFullBackup&&Array.isArray(backup.unitOwners)){
-        backup.unitOwners.forEach(u=>{
-          const normalised={...u,unit:parseInt(u.unit)};
-          units[String(normalised.unit)]=normalised;
-          dbSaveUnit(normalised);
-          uCount++;
-        });
-      }
-
-      // ── Restore users (only if full backup and confirmed) ──
-      let userCount=0;
-      if(isFullBackup&&Array.isArray(backup.users)&&backup.users.length){
-        const restoreUsers=confirm(
-          backup.users.length+' user account(s) found in backup.\n\nRestore user accounts? This will overwrite existing accounts with the same username.\n\nClick Cancel to skip user restore and keep current accounts.'
-        );
-        if(restoreUsers){
-          for(const u of backup.users){
-            dbSaveUser(u); userCount++;
-          }
-          setTimeout(renderUMTable,200);
-        }
-      }
-
-      // ── Refresh UI ──
+      const data=JSON.parse(e.target.result);
+      let count=0;
+      Object.entries(data).forEach(([key,val])=>{
+        months[key]=val; dbSave(key); count++;
+      });
       renderTabs();
       const keys=Object.keys(months).sort();
       if(keys.length) activateTab(keys[keys.length-1]);
-      populateInvMonths();
-      renderAdminStatus();
-      renderUnitsTable();
-      updatePropertyBanner();
-
-      const summary=[
-        mCount+' month'+(mCount!==1?'s':''),
-        uCount?uCount+' unit'+(uCount!==1?'s':''):'',
-        userCount?userCount+' user'+(userCount!==1?'s':''):'',
-        isFullBackup&&backup.propSettings?'property settings':''
-      ].filter(Boolean).join(', ');
-      showToast('Restored: '+summary,'var(--blue)');
-
+      populateInvMonths(); renderAdminStatus();
+      showToast(`✓ Imported ${count} months from backup`,'var(--blue)');
     }catch(err){
-      console.error('Import error',err);
       showToast('Import failed: '+err.message,'#C00000');
     }
     input.value='';
@@ -2259,42 +2046,15 @@ function importDB(input){
 }
 
 function wipeAllData(){
-  if(!confirm('⚠️ Permanently delete ALL data from the local database?\n\nThis includes all months, readings, billing, units, property settings and users.\n\nThis cannot be undone. Export a backup first!'))return;
-  if(!confirm('Last chance — wipe EVERYTHING including users?'))return;
-
-  // Wipe months
+  if(!confirm('⚠️ Permanently delete ALL data from the local database? This cannot be undone.'))return;
+  if(!confirm('Last chance — wipe everything?'))return;
   Object.keys(months).forEach(k=>{delete months[k];dbDelete(k);});
   activeKey=null;
-
-  // Wipe units
-  Object.keys(units).forEach(k=>{
-    dbDeleteUnit(parseInt(k));
-    delete units[k];
-  });
-
-  // Wipe propSettings (reset to defaults)
-  Object.keys(propSettings).forEach(k=>{ propSettings[k]=''; });
-  propSettings.dueDays='30';
-  savePropToDB();
-
-  // Wipe users except admin (so you can still log back in)
-  if(db){
-    db.transaction('users','readwrite').objectStore('users').clear();
-    // Re-seed default admin
-    dbSaveUser(DEFAULT_ADMIN);
-  }
-
-  // Reset UI
   document.getElementById('activeBadge').textContent='No month selected';
   document.getElementById('tabsRow').innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';
   document.getElementById('entryContent').innerHTML='<div class="empty-state"><p>Data wiped. Add a new month to begin.</p></div>';
-  updateHeaderComplex();
-  renderPropDisplayGrid();
-  updatePropertyBanner();
-  populateInvMonths();
-  renderUnitsTable();
-  renderAdminStatus();
-  showToast('All data wiped. Default admin restored.','#C00000');
+  populateInvMonths(); renderAdminStatus();
+  showToast('All data wiped','#C00000');
 }
 
 // ═══════════════ EXCEL EXPORT ═══════════════
@@ -2391,14 +2151,13 @@ function dbGetAllUsers(){
 
 // ── Session (sessionStorage — clears on tab close) ──
 function saveSession(user){
-  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
-  catch(e){ console.warn('Session storage unavailable',e); }
+  sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role}));
 }
 function loadSession(){
   try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
 }
 function clearSession(){
-  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
+  sessionStorage.removeItem('mra_session');
 }
 
 // ── Login flow ──
@@ -2469,9 +2228,6 @@ function applyAuth(){
   }
 
   renderUMTable();
-  // Mobile nav
-  if(typeof showMobileNav==='function') showMobileNav();
-  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
 }
 
 const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
@@ -2552,12 +2308,13 @@ function showMobileNav(){
 }
 
 function mobNav(id,btn){
-  // compare is now inside billing page
-  if(id==='compare') id='billing';
+  // Update mobile nav active state
   document.querySelectorAll('.mob-nav-btn').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
+  // Sync desktop nav too
   const deskBtn=document.querySelector(`#mainNav .nav-btn[onclick*="${id}"]`);
   showPage(id,deskBtn||btn);
+  // Scroll to top smoothly
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -2570,10 +2327,10 @@ function syncMobileNav(id){
 function applyMobileNavRoles(){
   if(!currentUser)return;
   const allowed={
-    admin:['data-entry','units','billing','dashboard','invoices','admin'],
-    entry:['data-entry','units','billing','dashboard'],
-    billing:['data-entry','units','billing','dashboard','invoices'],
-    readonly:['data-entry','units','billing','dashboard']
+    admin:['data-entry','billing','compare','dashboard','invoices','admin'],
+    entry:['data-entry','compare','dashboard'],
+    billing:['data-entry','billing','compare','dashboard','invoices'],
+    readonly:['data-entry','compare','dashboard']
   }[currentUser.role]||[];
   document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
     const page=btn.getAttribute('data-page');
@@ -2581,12 +2338,24 @@ function applyMobileNavRoles(){
   });
 }
 
-// Mobile nav sync is done inside showPage directly
+// Sync mobile nav when desktop showPage is called
+const _origShowPageMob=showPage;
+showPage=function(id,btn){
+  _origShowPageMob(id,btn);
+  syncMobileNav(id);
+};
 
 // Show/hide mobile nav on resize
 window.addEventListener('resize',showMobileNav);
 showMobileNav();
 
+// Extend applyAuth to set up mobile nav
+const _origApplyAuth=applyAuth;
+applyAuth=function(){
+  _origApplyAuth();
+  showMobileNav();
+  applyMobileNavRoles();
+};
 
 // Add PWA meta tags dynamically
 (function addPWAMeta(){
@@ -2615,16 +2384,11 @@ let editingUnit=null;
 
 function dbSaveUnit(u){
   if(!db)return;
-  try{
-    // Ensure unit key is stored as a number for consistent retrieval
-    const record={...u, unit:parseInt(u.unit)};
-    db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(record);
-  }catch(e){ console.error('dbSaveUnit failed',u,e); }
+  db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(u);
 }
 function dbDeleteUnit(unitNum){
   if(!db)return;
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(unitNum)); }
-  catch(e){ console.error('dbDeleteUnit failed',unitNum,e); }
+  db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(String(unitNum));
 }
 function dbLoadAllUnits(){
   return new Promise(res=>{
@@ -2637,14 +2401,11 @@ function dbLoadAllUnits(){
 
 async function loadUnitsFromDB(){
   const saved=await dbLoadAllUnits();
-  saved.forEach(u=>{
-    const normalised={...u, unit:parseInt(u.unit)};
-    units[String(normalised.unit)]=normalised;
-  });
+  saved.forEach(u=>{ units[String(u.unit)]=u; });
 }
 
 function getUnitOwner(unitNum){
-  return units[String(unitNum)]||units[String(parseInt(unitNum))]||null;
+  return units[String(unitNum)]||null;
 }
 
 function renderUnitsTable(){
@@ -2745,7 +2506,9 @@ function exportUnitsExcel(){
   showToast('Unit directory exported');
 }
 
-// Units page is handled inside showPage directly
+// Inject showPage handler for units page
+const _baseShowPage=showPage;
+
 
 
 // ══════════════════════════════════════════
