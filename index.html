@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --navy:#1F3864;--blue:#2E75B6;--sky:#D6E4F0;--sky2:#EBF3FA;
@@ -317,7 +318,6 @@ input[type=file]{display:none}
   #dbStatus{display:none}
   .hdr-right{gap:.4rem}
   .badge{font-size:.62rem;padding:.18rem .55rem}
-  .user-chip .uc-role{display:none}
 
   /* Shell — extra bottom padding for mobile nav */
   .shell{padding:.85rem .7rem 5.5rem}
@@ -376,9 +376,6 @@ input[type=file]{display:none}
   /* Buttons */
   .exp-row{gap:.5rem}
   .btn-exp,.btn-ghost{font-size:.74rem;padding:.5rem .9rem}
-
-  /* Auth card */
-  .auth-card{padding:2rem 1.5rem}
 }
 
 @media(max-width:400px){
@@ -389,52 +386,7 @@ input[type=file]{display:none}
   .control-bar{grid-template-columns:1fr}
 }
 
-/* ═══ AUTH ═══ */
-#authOverlay{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#0D1B3E 0%,#1F3864 60%,#2A4A82 100%);
-  display:flex;align-items:center;justify-content:center;flex-direction:column;padding:1.5rem}
-.auth-card{background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:380px;
-  box-shadow:0 20px 60px rgba(0,0,0,.4)}
-.auth-logo{width:52px;height:52px;background:var(--blue);border-radius:12px;
-  display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem}
-.auth-card h2{font-size:1.15rem;font-weight:800;color:var(--navy);text-align:center;margin-bottom:.3rem}
-.auth-card .auth-sub{font-size:.76rem;color:var(--muted);text-align:center;margin-bottom:1.75rem}
-.auth-field{margin-bottom:1rem}
-.auth-field label{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;
-  letter-spacing:.1em;color:var(--muted);margin-bottom:.3rem}
-.auth-field input{width:100%;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:8px;
-  font-family:var(--sans);font-size:.92rem;color:var(--text);background:var(--off);transition:border-color .15s}
-.auth-field input:focus{outline:none;border-color:var(--blue);background:#fff;
-  box-shadow:0 0 0 3px rgba(46,117,182,.15)}
-.auth-btn{width:100%;padding:.72rem;background:var(--navy);color:#fff;border:none;border-radius:8px;
-  font-family:var(--sans);font-weight:700;font-size:.9rem;cursor:pointer;margin-top:.5rem;
-  transition:background .15s,transform .1s}
-.auth-btn:hover{background:var(--blue);transform:translateY(-1px)}
-.auth-error{background:var(--red-bg);color:var(--red);border-radius:6px;padding:.55rem .85rem;
-  font-size:.78rem;font-weight:600;margin-top:.75rem;text-align:center;display:none}
-.auth-footer{color:rgba(255,255,255,.4);font-size:.68rem;margin-top:1.5rem;text-align:center}
-/* USER CHIP in header */
-.user-chip{display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:.22rem .7rem .22rem .45rem;cursor:pointer}
-.user-chip .uc-avatar{width:22px;height:22px;border-radius:50%;background:var(--blue);
-  display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff}
-.user-chip .uc-name{font-size:.7rem;font-weight:600;color:rgba(255,255,255,.9)}
-.user-chip .uc-role{font-size:.6rem;color:rgba(255,255,255,.55)}
-/* ROLE BADGE */
-.role-pill{display:inline-block;padding:.15rem .55rem;border-radius:12px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
-.role-pill.admin{background:rgba(31,56,100,.12);color:var(--navy)}
-.role-pill.entry{background:rgba(46,117,182,.12);color:var(--blue)}
-.role-pill.billing{background:rgba(197,90,17,.12);color:var(--orange)}
-.role-pill.readonly{background:rgba(90,112,153,.12);color:var(--muted)}
-/* USER MANAGEMENT */
-.um-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.75rem}
-.um-table th{background:var(--navy);color:#fff;padding:.5rem .75rem;text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em}
-.um-table td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
-.um-table tr:nth-child(even) td{background:var(--sky2)}
-.um-add-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;
-  padding:1rem;background:var(--sky2);border-radius:8px;margin-top:1rem;align-items:end}
-.um-add-form input,.um-add-form select{padding:.42rem .68rem;border:1.5px solid var(--border);
-  border-radius:7px;font-family:var(--mono);font-size:.82rem;width:100%;background:#fff}
-.um-add-form input:focus,.um-add-form select:focus{outline:none;border-color:var(--blue)}
+
 
 /* UNITS PAGE */
 #unitsTable td{padding:.42rem .75rem;vertical-align:middle}
@@ -478,11 +430,6 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
   <div class="hdr-right">
     <span id="dbStatus">● DB…</span>
     <div class="badge" id="activeBadge">No month selected</div>
-    <div class="user-chip" onclick="showUserMenu()" id="userChip" style="display:none">
-      <div class="uc-avatar" id="userAvatar">?</div>
-      <div><div class="uc-name" id="userChipName">–</div>
-        <div class="uc-role" id="userChipRole">–</div></div>
-    </div>
   </div>
 </header>
 
@@ -716,38 +663,6 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
     <div id="adminStatusBody"><p style="font-size:.78rem;color:var(--muted)">Loading...</p></div>
   </div>
 
-  <div class="section-hdr">User Management</div>
-  <div class="admin-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-      <h3 style="margin-bottom:0">System Users</h3>
-      <span style="font-size:.72rem;color:var(--muted)">Passwords are hashed — not stored in plain text</span>
-    </div>
-    <div class="tw"><table class="um-table" id="umTable">
-      <thead><tr>
-        <th>Username</th><th>Display Name</th><th>Role</th><th>Last Login</th><th>Actions</th>
-      </tr></thead>
-      <tbody id="umBody"></tbody>
-    </table></div>
-    <div class="um-add-form" id="umAddForm">
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Username</label>
-        <input type="text" id="umNewUser" placeholder="e.g. jsmith"></div>
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Display Name</label>
-        <input type="text" id="umNewName" placeholder="e.g. John Smith"></div>
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Password</label>
-        <input type="password" id="umNewPass" placeholder="Password"></div>
-      <div><label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.25rem">Role</label>
-        <select id="umNewRole">
-          <option value="admin">Admin — Full access</option>
-          <option value="entry">Data Entry — Enter readings</option>
-          <option value="billing">Billing — Billing &amp; invoices</option>
-          <option value="readonly">Read Only — View &amp; dashboard</option>
-        </select></div>
-      <div style="display:flex;gap:.5rem">
-        <button class="btn-exp" onclick="addUser()" style="white-space:nowrap">Add User</button>
-      </div>
-    </div>
-  </div>
-
   <div class="section-hdr">Property / Complex Details</div>
   <div class="admin-card" style="max-width:900px;position:relative">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem">
@@ -811,56 +726,37 @@ const MNAMES=['January','February','March','April','May','June','July','August',
 const months={};
 let activeKey=null, activeType='water', charts={};
 
-// ═══════════════ INDEXEDDB ═══════════════
-const DB_NAME='MeterReadingsDB', DB_VER=4, STORE='months';
-let db=null;
+// ═══════════════════════════════════════════════════════════
+// SUPABASE CLIENT
+// Replace YOUR_SUPABASE_ANON_KEY with the "anon public" key from:
+//   Supabase Dashboard → Project Settings → API → Project API keys
+// ═══════════════════════════════════════════════════════════
+const SUPABASE_URL='https://hbfxodedseidrtlyptan.supabase.co';
+const SUPABASE_ANON_KEY='YOUR_SUPABASE_ANON_KEY';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
-function openDB(){
-  return new Promise((res,rej)=>{
-    const req=indexedDB.open(DB_NAME,DB_VER);
-    req.onupgradeneeded=e=>{
-      const d=e.target.result;
-      // Always check before creating — handles upgrades from any previous version
-      const stores={
-        [STORE]:{keyPath:'key'},
-        propSettings:{keyPath:'key'},
-        users:{keyPath:'username'},
-        unitOwners:{keyPath:'unit'}
-      };
-      Object.entries(stores).forEach(([name,opts])=>{
-        if(!d.objectStoreNames.contains(name)) d.createObjectStore(name,opts);
-      });
-    };
-    req.onsuccess=e=>{db=e.target.result;res(db);};
-    req.onerror=e=>rej(e.target.error);
-  });
+async function dbSave(key){
+  try{
+    const {error}=await sb.from('months').upsert({key,data:months[key]});
+    if(error) console.error('dbSave failed',key,error);
+  }catch(e){ console.error('dbSave failed',key,e); }
 }
-function dbSave(key){
-  if(!db)return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
-  catch(e){ console.error('dbSave failed',key,e); }
+async function dbDelete(key){
+  try{
+    const {error}=await sb.from('months').delete().eq('key',key);
+    if(error) console.error('dbDelete failed',key,error);
+  }catch(e){ console.error('dbDelete failed',key,e); }
 }
-function dbDelete(key){
-  if(!db)return;
-  try{ db.transaction(STORE,'readwrite').objectStore(STORE).delete(key); }
-  catch(e){ console.error('dbDelete failed',key,e); }
-}
-function dbLoadAll(){
-  return new Promise((res,rej)=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=e=>rej(e.target.error);
-  });
+async function dbLoadAll(){
+  try{
+    const {data,error}=await sb.from('months').select('*');
+    if(error){console.error('dbLoadAll failed',error);return[];}
+    return data||[];
+  }catch(e){console.error('dbLoadAll failed',e);return[];}
 }
 
 // ═══════════════ INIT ═══════════════
 async function init(){
-  // Hide main content until authenticated
-  document.querySelector('.shell').style.display='none';
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
-
   const sy=document.getElementById('selYear');
   const now=new Date();
   for(let y=now.getFullYear()-2;y<=now.getFullYear()+2;y++){
@@ -870,53 +766,31 @@ async function init(){
   }
   document.getElementById('selMonth').value=String(now.getMonth()+1).padStart(2,'0');
   try{
-    await openDB();
-    // Seed default admin if no users exist
-    const existingUsers=await dbGetAllUsers();
-    if(!existingUsers.length) dbSaveUser(DEFAULT_ADMIN);
-
     await loadPropFromDB();
     await loadUnitsFromDB();
     updateHeaderComplex();
-    // Update auth overlay subtitle with complex name
-    const sub=document.getElementById('authComplexSub');
-    if(sub&&propSettings.complex) sub.textContent=propSettings.complex+' — Please sign in';
 
     const saved=await dbLoadAll();
-    saved.forEach(rec=>{ const{key,...data}=rec; months[key]=data; });
+    saved.forEach(rec=>{ if(rec.key&&rec.data) months[rec.key]=rec.data; });
     const keys=Object.keys(months).sort();
     if(keys.length){ renderTabs(); activateTab(keys[keys.length-1]); }
     document.getElementById('dbStatus').textContent='● DB Connected';
     document.getElementById('dbStatus').style.color='#7EC8E3';
   }catch(err){
+    console.error('Init error',err);
     document.getElementById('dbStatus').textContent='● DB Unavailable';
     document.getElementById('dbStatus').style.color='#F5AAAA';
   }
   populateInvMonths();
-
-  // Check for existing session
-  const session=loadSession();
-  if(session){
-    currentUser=session;
-    applyAuth();
-  }
-  // else: overlay stays visible, user must log in
+  // Navigate to first visible page
+  const first=document.querySelector('#mainNav .nav-btn');
+  if(first) first.click();
 }
 init();
 
 // ═══════════════ PAGE NAV ═══════════════
 function showPage(id,btn){
   syncMobileNav(id);
-  // Role guard — skip if not logged in yet
-  if(currentUser){
-    const allowed={
-      admin:['data-entry','units','billing','dashboard','invoices','admin'],
-      entry:['data-entry','units','billing','dashboard'],
-      billing:['data-entry','units','billing','dashboard','invoices'],
-      readonly:['data-entry','units','billing','dashboard']
-    }[currentUser.role]||[];
-    if(!allowed.includes(id)){showToast('Access denied for your role','#C00000');return;}
-  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
@@ -993,9 +867,6 @@ function renderEntryContent(){
 }
 
 function switchType(t){activeType=t;renderEntryContent();
-  if(currentUser&&currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
 }
 
 function renderSumStrip(c){
@@ -1078,8 +949,6 @@ function renderDataTable(c){
 }
 
 function upRow(key,type,idx,field,value,inputEl){
-  if(currentUser&&currentUser.role==='readonly'){showToast('Read-only access','#C55A11');return;}
-
   if(field==='flagLeak'){
     months[key][type][idx].flagLeak=(value==='leak');
     if(value&&value!=='leak') months[key][type][idx].notes=
@@ -1675,26 +1544,20 @@ let propSettings={
   complex:'',addr1:'',addr2:'',contact:'',email:'',phone:'',
   bank:'',accNo:'',branch:'',accType:'',vat:''
 };
-const PROP_STORE='propSettings';
-
-function savePropToDB(){
-  if(!db)return;
-  db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings});
+async function savePropToDB(){
+  try{
+    const {error}=await sb.from('prop_settings').upsert({id:'main',data:propSettings});
+    if(error) console.error('savePropToDB failed',error);
+  }catch(e){ console.error('savePropToDB failed',e); }
 }
 
 async function loadPropFromDB(){
-  return new Promise((res)=>{
-    if(!db){res();return;}
-    const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
-    req.onsuccess=e=>{
-      if(e.target.result){
-        const {key,...data}=e.target.result;
-        propSettings={...propSettings,...data};
-      }
-      res();
-    };
-    req.onerror=()=>res();
-  });
+  try{
+    const {data,error}=await sb.from('prop_settings').select('data').eq('id','main').maybeSingle();
+    if(error){console.error('loadPropFromDB failed',error);return;}
+    // 'data' is the row, 'data.data' is the column named 'data' in that row
+    if(data&&data.data) propSettings={...propSettings,...data.data};
+  }catch(e){ console.error('loadPropFromDB failed',e); }
 }
 
 function ps(k){return propSettings[k]||'';}
@@ -2115,7 +1978,6 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
 // ═══════════════ ADMIN ═══════════════
 function renderAdminStatus(){
   renderPropDisplayGrid();
-  setTimeout(renderUMTable, 50);
   const keys=Object.keys(months).sort();
   const body=document.getElementById('adminStatusBody');
   if(!body)return;
@@ -2148,8 +2010,6 @@ function renderAdminStatus(){
 }
 
 async function exportDB(){
-  // Collect ALL stores for a complete backup
-  const allUsers=await dbGetAllUsers();
   const allUnits=await dbLoadAllUnits();
 
   const backup={
@@ -2158,8 +2018,7 @@ async function exportDB(){
     _app:'MeterReadingsDB',
     months,
     propSettings,
-    unitOwners:Object.values(units),
-    users:allUsers.map(u=>({...u})) // include hashed passwords for full restore
+    unitOwners:Object.values(units)
   };
 
   const data=JSON.stringify(backup,null,2);
@@ -2173,7 +2032,6 @@ async function exportDB(){
   const counts=[
     Object.keys(months).length+' months',
     allUnits.length+' units',
-    allUsers.length+' users',
     'property settings'
   ].join(', ');
   showToast('Backup saved: '+counts);
@@ -2218,20 +2076,6 @@ function importDB(input){
         });
       }
 
-      // ── Restore users (only if full backup and confirmed) ──
-      let userCount=0;
-      if(isFullBackup&&Array.isArray(backup.users)&&backup.users.length){
-        const restoreUsers=confirm(
-          backup.users.length+' user account(s) found in backup.\n\nRestore user accounts? This will overwrite existing accounts with the same username.\n\nClick Cancel to skip user restore and keep current accounts.'
-        );
-        if(restoreUsers){
-          for(const u of backup.users){
-            dbSaveUser(u); userCount++;
-          }
-          setTimeout(renderUMTable,200);
-        }
-      }
-
       // ── Refresh UI ──
       renderTabs();
       const keys=Object.keys(months).sort();
@@ -2244,7 +2088,6 @@ function importDB(input){
       const summary=[
         mCount+' month'+(mCount!==1?'s':''),
         uCount?uCount+' unit'+(uCount!==1?'s':''):'',
-        userCount?userCount+' user'+(userCount!==1?'s':''):'',
         isFullBackup&&backup.propSettings?'property settings':''
       ].filter(Boolean).join(', ');
       showToast('Restored: '+summary,'var(--blue)');
@@ -2259,8 +2102,8 @@ function importDB(input){
 }
 
 function wipeAllData(){
-  if(!confirm('⚠️ Permanently delete ALL data from the local database?\n\nThis includes all months, readings, billing, units, property settings and users.\n\nThis cannot be undone. Export a backup first!'))return;
-  if(!confirm('Last chance — wipe EVERYTHING including users?'))return;
+  if(!confirm('⚠️ Permanently delete ALL data from the local database?\n\nThis includes all months, readings, billing, units, property settings.\n\nThis cannot be undone. Export a backup first!'))return;
+  if(!confirm('Last chance — wipe EVERYTHING?'))return;
 
   // Wipe months
   Object.keys(months).forEach(k=>{delete months[k];dbDelete(k);});
@@ -2277,13 +2120,6 @@ function wipeAllData(){
   propSettings.dueDays='30';
   savePropToDB();
 
-  // Wipe users except admin (so you can still log back in)
-  if(db){
-    db.transaction('users','readwrite').objectStore('users').clear();
-    // Re-seed default admin
-    dbSaveUser(DEFAULT_ADMIN);
-  }
-
   // Reset UI
   document.getElementById('activeBadge').textContent='No month selected';
   document.getElementById('tabsRow').innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';
@@ -2294,7 +2130,7 @@ function wipeAllData(){
   populateInvMonths();
   renderUnitsTable();
   renderAdminStatus();
-  showToast('All data wiped. Default admin restored.','#C00000');
+  showToast('All data wiped.','#C00000');
 }
 
 // ═══════════════ EXCEL EXPORT ═══════════════
@@ -2354,194 +2190,6 @@ function showToast(msg,color='var(--green)'){
 }
 
 
-// ═══════════════════════════════════════════════════════════
-// AUTH SYSTEM
-// ═══════════════════════════════════════════════════════════
-const USER_STORE='users';
-let currentUser=null; // {username, name, role}
-
-// Simple hash — SHA-256 via Web Crypto
-async function hashPwd(pwd){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-// Default admin seeded on first run
-const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
-  hash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // 'admin'
-  lastLogin:null};
-
-// ── DB helpers for users store ──
-function dbSaveUser(u){
-  if(!db)return;
-  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u);
-}
-function dbDeleteUser(username){
-  if(!db)return;
-  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username);
-}
-function dbGetAllUsers(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
-  });
-}
-
-// ── Session (sessionStorage — clears on tab close) ──
-function saveSession(user){
-  try{ sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role})); }
-  catch(e){ console.warn('Session storage unavailable',e); }
-}
-function loadSession(){
-  try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
-}
-function clearSession(){
-  try{ sessionStorage.removeItem('mra_session'); }catch(e){}
-}
-
-// ── Login flow ──
-async function doLogin(){
-  const username=document.getElementById('authUser').value.trim().toLowerCase();
-  const password=document.getElementById('authPass').value;
-  const errEl=document.getElementById('authError');
-  errEl.style.display='none';
-  if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
-
-  const users=await dbGetAllUsers();
-  const user=users.find(u=>u.username===username);
-  if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  const hash=await hashPwd(password);
-  if(hash!==user.hash){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
-
-  // Success
-  user.lastLogin=new Date().toISOString();
-  dbSaveUser(user);
-  currentUser={username:user.username,name:user.name,role:user.role};
-  saveSession(currentUser);
-  applyAuth();
-}
-
-function doLogout(){
-  clearSession();
-  currentUser=null;
-  document.getElementById('authOverlay').style.display='flex';
-  document.getElementById('authUser').value='';
-  document.getElementById('authPass').value='';
-  document.getElementById('authError').style.display='none';
-  document.getElementById('userChip').style.display='none';
-  // hide main content
-  document.querySelector('header').style.opacity='0.3';
-  document.querySelector('header').style.pointerEvents='none';
-  document.querySelector('.shell').style.display='none';
-}
-
-function applyAuth(){
-  if(!currentUser)return;
-  // Hide overlay
-  document.getElementById('authOverlay').style.display='none';
-  document.querySelector('header').style.opacity='';
-  document.querySelector('header').style.pointerEvents='';
-  document.querySelector('.shell').style.display='';
-
-  // Update user chip
-  const chip=document.getElementById('userChip');
-  chip.style.display='flex';
-  document.getElementById('userAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
-  document.getElementById('userChipName').textContent=currentUser.name;
-  document.getElementById('userChipRole').textContent=ROLE_LABELS[currentUser.role]||currentUser.role;
-
-  // Show/hide nav buttons based on role
-  document.querySelectorAll('#mainNav .nav-btn').forEach(btn=>{
-    const roles=btn.getAttribute('data-roles')||'';
-    btn.style.display=roles.split(',').includes(currentUser.role)?'':'none';
-  });
-
-  // Navigate to first visible page
-  const first=document.querySelector('#mainNav .nav-btn:not([style*="display: none"])');
-  if(first) first.click();
-
-  // Restrict data entry fields for readonly
-  if(currentUser.role==='readonly'){
-    document.querySelectorAll('td input,td select').forEach(el=>el.disabled=true);
-  }
-
-  renderUMTable();
-  // Mobile nav
-  if(typeof showMobileNav==='function') showMobileNav();
-  if(typeof applyMobileNavRoles==='function') applyMobileNavRoles();
-}
-
-const ROLE_LABELS={admin:'Administrator',entry:'Data Entry',billing:'Billing',readonly:'Read Only'};
-const ROLE_COLORS={admin:'admin',entry:'entry',billing:'billing',readonly:'readonly'};
-
-function showUserMenu(){
-  if(!confirm(`Signed in as ${currentUser.name} (${ROLE_LABELS[currentUser.role]})
-
-Click OK to sign out.`))return;
-  doLogout();
-}
-
-// Role guard merged into showPage above
-
-// ── User Management ──
-async function renderUMTable(){
-  const tbody=document.getElementById('umBody');
-  if(!tbody)return;
-  const users=await dbGetAllUsers();
-  tbody.innerHTML=users.map(u=>`
-    <tr>
-      <td style="font-family:var(--mono);font-weight:600">${u.username}</td>
-      <td>${u.name}</td>
-      <td><span class="role-pill ${ROLE_COLORS[u.role]}">${ROLE_LABELS[u.role]||u.role}</span></td>
-      <td style="font-size:.72rem;color:var(--muted)">${u.lastLogin?new Date(u.lastLogin).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Never'}</td>
-      <td style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button onclick="resetPassword('${u.username}')" style="font-size:.7rem;padding:.25rem .6rem;border:1.5px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-family:var(--sans);font-weight:600">Reset PW</button>
-        ${u.username!=='admin'&&u.username!==currentUser?.username?`<button onclick="deleteUser('${u.username}')" style="font-size:.7rem;padding:.25rem .6rem;border:1.5px solid var(--red);border-radius:5px;background:#fff;color:var(--red);cursor:pointer;font-family:var(--sans);font-weight:600">Remove</button>`:''}
-      </td>
-    </tr>`).join('');
-}
-
-async function addUser(){
-  const username=document.getElementById('umNewUser').value.trim().toLowerCase();
-  const name=document.getElementById('umNewName').value.trim();
-  const password=document.getElementById('umNewPass').value;
-  const role=document.getElementById('umNewRole').value;
-  if(!username||!name||!password){showToast('Fill in all fields','#C55A11');return;}
-  const users=await dbGetAllUsers();
-  if(users.find(u=>u.username===username)){showToast('Username already exists','#C55A11');return;}
-  const hash=await hashPwd(password);
-  dbSaveUser({username,name,role,hash,lastLogin:null});
-  document.getElementById('umNewUser').value='';
-  document.getElementById('umNewName').value='';
-  document.getElementById('umNewPass').value='';
-  showToast('User added: '+name);
-  setTimeout(renderUMTable,200);
-}
-
-async function resetPassword(username){
-  const newPwd=prompt('Enter new password for '+username+':');
-  if(!newPwd)return;
-  const users=await dbGetAllUsers();
-  const user=users.find(u=>u.username===username);
-  if(!user)return;
-  user.hash=await hashPwd(newPwd);
-  dbSaveUser(user);
-  showToast('Password reset for '+username);
-}
-
-async function deleteUser(username){
-  if(!confirm('Remove user "'+username+'"? This cannot be undone.'))return;
-  dbDeleteUser(username);
-  showToast('User removed','#C55A11');
-  setTimeout(renderUMTable,200);
-}
-
-// renderUMTable is called from renderAdminStatus directly
-
-
 // ═══════════════ MOBILE NAV ═══════════════
 function isMobile(){return window.innerWidth<=700;}
 
@@ -2568,16 +2216,8 @@ function syncMobileNav(id){
 }
 
 function applyMobileNavRoles(){
-  if(!currentUser)return;
-  const allowed={
-    admin:['data-entry','units','billing','dashboard','invoices','admin'],
-    entry:['data-entry','units','billing','dashboard'],
-    billing:['data-entry','units','billing','dashboard','invoices'],
-    readonly:['data-entry','units','billing','dashboard']
-  }[currentUser.role]||[];
   document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
-    const page=btn.getAttribute('data-page');
-    btn.style.display=allowed.includes(page)?'':'none';
+    btn.style.display='';
   });
 }
 
@@ -2609,30 +2249,28 @@ showMobileNav();
 // ═══════════════════════════════════════════════════════════
 // UNIT OWNER MANAGEMENT
 // ═══════════════════════════════════════════════════════════
-const UNITS_STORE='unitOwners';
 let units={}; // key: unitNum (string) → {unit,first,last,email,phone,notes}
 let editingUnit=null;
 
-function dbSaveUnit(u){
-  if(!db)return;
+async function dbSaveUnit(u){
   try{
-    // Ensure unit key is stored as a number for consistent retrieval
-    const record={...u, unit:parseInt(u.unit)};
-    db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(record);
+    const record={...u,unit:parseInt(u.unit)};
+    const {error}=await sb.from('unit_owners').upsert({unit:record.unit,data:record});
+    if(error) console.error('dbSaveUnit failed',u,error);
   }catch(e){ console.error('dbSaveUnit failed',u,e); }
 }
-function dbDeleteUnit(unitNum){
-  if(!db)return;
-  try{ db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(parseInt(unitNum)); }
-  catch(e){ console.error('dbDeleteUnit failed',unitNum,e); }
+async function dbDeleteUnit(unitNum){
+  try{
+    const {error}=await sb.from('unit_owners').delete().eq('unit',parseInt(unitNum));
+    if(error) console.error('dbDeleteUnit failed',unitNum,error);
+  }catch(e){ console.error('dbDeleteUnit failed',unitNum,e); }
 }
-function dbLoadAllUnits(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
-  });
+async function dbLoadAllUnits(){
+  try{
+    const {data,error}=await sb.from('unit_owners').select('data');
+    if(error){console.error('dbLoadAllUnits failed',error);return[];}
+    return (data||[]).filter(r=>r.data).map(r=>r.data);
+  }catch(e){console.error('dbLoadAllUnits failed',e);return[];}
 }
 
 async function loadUnitsFromDB(){
@@ -2996,32 +2634,5 @@ ${ps('phone')||''}`;
 
 </script>
 
-<!-- AUTH OVERLAY -->
-<div id="authOverlay">
-  <div class="auth-card">
-    <div class="auth-logo">
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <path d="M4 20 Q6 13 13 11 Q20 9 22 15" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <circle cx="13" cy="11" r="3" fill="#7EC8E3"/>
-        <rect x="10" y="15" width="6" height="7" rx="1.5" fill="#F0A95A"/>
-      </svg>
-    </div>
-    <h2>Utility Meter Readings</h2>
-    <p class="auth-sub" id="authComplexSub">Please sign in to continue</p>
-    <div class="auth-field">
-      <label>Username</label>
-      <input type="text" id="authUser" placeholder="Enter your username" autocomplete="username"
-        onkeydown="if(event.key==='Enter')document.getElementById('authPass').focus()">
-    </div>
-    <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="authPass" placeholder="Enter your password" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <button class="auth-btn" onclick="doLogin()">Sign In</button>
-    <div class="auth-error" id="authError">Incorrect username or password</div>
-  </div>
-  <div class="auth-footer">Mogale City Complex &nbsp;|&nbsp; Utility Management System</div>
-</div>
 </body>
 </html>
