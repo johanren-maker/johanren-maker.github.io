@@ -442,9 +442,9 @@ input[type=file]{display:none}
 .role-pill.billing{background:rgba(197,90,17,.12);color:var(--orange)}
 .role-pill.readonly{background:rgba(90,112,153,.12);color:var(--muted)}
 /* USER MANAGEMENT */
-.um-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.75rem}
-.um-table th{background:var(--navy);color:#fff;padding:.5rem .75rem;text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em}
-.um-table td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+.um-table{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:.75rem}
+.um-table th{background:var(--navy);color:#fff;padding:.4rem .5rem;text-align:left;font-size:.62rem;text-transform:uppercase;letter-spacing:.07em}
+.um-table td{padding:.4rem .5rem;border-bottom:1px solid var(--border);vertical-align:middle}
 .um-table tr:nth-child(even) td{background:var(--sky2)}
 .um-add-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;
   padding:1rem;background:var(--sky2);border-radius:8px;margin-top:1rem;align-items:end}
@@ -478,10 +478,10 @@ input[type=file]{display:none}
     </div>
   </div>
   <div class="header-nav" id="mainNav">
+    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-btn active" data-roles="admin,entry,billing,readonly" onclick="showPage('data-entry',this)">Meter Readings</button>
     <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('units',this)">Units</button>
     <button class="nav-btn" data-roles="admin,billing" onclick="showPage('billing',this)">Billing</button>
-    <button class="nav-btn" data-roles="admin,entry,billing,readonly" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-btn" data-roles="admin,billing" onclick="showPage('invoices',this)">Invoices</button>
     <button class="nav-btn" data-roles="admin" onclick="showPage('admin',this)">Admin</button>
   </div>
@@ -620,14 +620,17 @@ input[type=file]{display:none}
     </div>
     <div class="tw"><table class="um-table" id="unitsTable">
       <thead><tr>
-        <th style="width:70px">Unit #</th>
+        <th style="width:60px">Unit #</th>
+        <th style="width:90px">Account #</th>
+        <th style="width:100px">Water Meter #</th>
+        <th style="width:100px">Elec Meter #</th>
         <th>Person 1</th>
         <th>P1 Email</th>
-        <th>P1 Phone</th>
+        <th style="width:90px">P1 Phone</th>
         <th>Person 2</th>
         <th>P2 Email</th>
         <th>Notes</th>
-        <th style="width:80px">Actions</th>
+        <th style="width:70px">Actions</th>
       </tr></thead>
       <tbody id="unitsBody"></tbody>
     </table></div>
@@ -675,6 +678,20 @@ input[type=file]{display:none}
         <button class="btn-ghost" onclick="clearUnitForm()">Clear</button>
       </div>
     </div>
+    <div style="margin-top:.75rem">
+      <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Account Number</label>
+      <input type="text" id="uoAccountNo" placeholder="e.g. ACC-001" style="max-width:260px">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:.75rem">
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Water Meter Number</label>
+        <input type="text" id="uoWaterMeter" placeholder="e.g. W-10234">
+      </div>
+      <div>
+        <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Electricity Meter Number</label>
+        <input type="text" id="uoElecMeter" placeholder="e.g. E-55678">
+      </div>
+    </div>
   </div>
 
   <div class="admin-card" style="margin-bottom:1.25rem">
@@ -687,11 +704,13 @@ input[type=file]{display:none}
         <th>Item Name</th>
         <th style="text-align:center;width:70px">💧 Water</th>
         <th style="text-align:center;width:70px">⚡ Elec</th>
+        <th>Water Meter #</th>
+        <th>Elec Meter #</th>
         <th>Notes</th>
         <th style="width:90px">Actions</th>
       </tr></thead>
       <tbody id="extraItemsBody">
-        <tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No extra meter items defined</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No extra meter items defined</td></tr>
       </tbody>
     </table></div>
     <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)">
@@ -704,6 +723,16 @@ input[type=file]{display:none}
         <div>
           <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Notes</label>
           <input type="text" id="extraItemNotes" placeholder="Optional note">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+        <div>
+          <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Water Meter Number</label>
+          <input type="text" id="extraItemWaterMeter" placeholder="e.g. WP-001">
+        </div>
+        <div>
+          <label style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:.22rem">Electricity Meter Number</label>
+          <input type="text" id="extraItemElecMeter" placeholder="e.g. EP-001">
         </div>
       </div>
       <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
@@ -873,14 +902,14 @@ input[type=file]{display:none}
 
 <!-- MOBILE BOTTOM NAV -->
 <nav id="mobileNavBar" role="navigation" aria-label="Mobile navigation">
+  <button class="mob-nav-btn" data-page="dashboard" onclick="mobNav('dashboard',this)">
+    <span class="mn-icon">📊</span>Dash
+  </button>
   <button class="mob-nav-btn active" data-page="data-entry" onclick="mobNav('data-entry',this)">
     <span class="mn-icon">📋</span>Entry
   </button>
   <button class="mob-nav-btn" data-page="billing" onclick="mobNav('billing',this)" data-roles="admin,billing">
     <span class="mn-icon">🏛</span>Billing
-  </button>
-  <button class="mob-nav-btn" data-page="dashboard" onclick="mobNav('dashboard',this)">
-    <span class="mn-icon">📊</span>Dash
   </button>
   <button class="mob-nav-btn" data-page="compare" onclick="mobNav('compare',this)">
     <span class="mn-icon">🔀</span>Compare
@@ -991,6 +1020,7 @@ async function init(){
 
     await loadPropFromDB();
     await loadUnitsFromDB();
+    await loadExtraItemsFromDB();
     updateHeaderComplex();
     // Update auth overlay subtitle with complex name
     const sub=document.getElementById('authComplexSub');
@@ -1198,11 +1228,12 @@ function renderDataTable(c){
   const tbl=document.createElement('table');
   tbl.innerHTML=`<thead><tr>
     <th style="width:90px;min-width:90px">Unit #</th>
+    <th style="min-width:120px">Meter No</th>
     <th class="n">Opening (${unit})</th><th class="n">Closing (${unit})</th>
     <th class="n">Usage (${unit})</th><th class="n">Charge (R)</th>
     <th>${isW?'Problem Reporting':'Notes'}</th>
   </tr></thead><tbody id="tbd"></tbody>
-  <tfoot><tr><td class="lbl" colspan="3">TOTALS</td>
+  <tfoot><tr><td class="lbl" colspan="4">TOTALS</td>
     <td class="n" id="ftU">—</td><td class="n" id="ftC">—</td><td></td>
   </tr></tfoot>`;
   tw.appendChild(tbl); card.appendChild(tw); c.appendChild(card);
@@ -1210,11 +1241,16 @@ function renderDataTable(c){
   const tbody=tbl.querySelector('#tbd'); let tU=0,tC=0;
   rows.forEach((row,idx)=>{
     const tr=document.createElement('tr');
+    const owner=getUnitOwner(row.unit);
+    const meterNo=activeType==='water'
+      ?(owner?.waterMeterNo||owner?.water_meter_no||'')
+      :owner?.elecMeterNo||owner?.elec_meter_no||'';
     if(isW&&row.flagLeak) tr.classList.add('lr');
     const u=getUsage(activeType, row.opening, row.closing);
     const ch=u!==null?u*rate:null;
     if(u!==null){tU+=u;tC+=ch;}
     tr.innerHTML=`<td class="ul" style="white-space:nowrap">Unit ${row.unit}<button onclick="showUnitInfo(${row.unit},event)" title="Owner info" style="margin-left:.4rem;background:none;border:1.5px solid var(--border);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:.6rem;color:var(--blue);font-weight:700;line-height:1;padding:0;vertical-align:middle">i</button></td>
+      <td style="font-family:var(--mono);font-size:.74rem">${meterNo||'—'}</td>
       <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,row.opening)}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value)"></td>
       <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,row.closing)}"
@@ -1234,10 +1270,12 @@ function renderDataTable(c){
 
   extraRows.forEach(ex=>{
     const tr=document.createElement('tr');
+    const meterNo=activeType==='water'?(ex.waterMeterNo||''):(ex.elecMeterNo||'');
     const u=getUsage(activeType, ex.opening, ex.closing);
     const ch=u!==null?u*rate:null;
     if(u!==null){tU+=u;tC+=ch;}
     tr.innerHTML=`<td class="ul" style="white-space:nowrap">${ex.itemName}</td>
+      <td style="font-family:var(--mono);font-size:.74rem">${meterNo||'—'}</td>
       <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,ex.opening)}"
         onchange="upExtraRow('${activeKey}','${activeType}','${ex.extraItemId}','opening',this.value)"></td>
       <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,ex.closing)}"
@@ -1992,13 +2030,14 @@ function invData(key,unitNum){
   const ownerEmail=document.getElementById('invOwnerEmail')?.value||(_owner?_owner.email:'')||'';
   const ownerEmail2=document.getElementById('invOwnerEmail2')?.value||(_owner?_owner.email2:'')||'';
   const ownerPhone=_owner?_owner.phone:'';
+  const accountNo=_owner?.accountNo||_owner?.account_no||'';
   const invNo=document.getElementById('invNumber')?.value||'INV-'+d.year+d.month+'-'+String(unitNum).padStart(3,'0');
   return {d,wRow,eRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,
-    invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo};
+    invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,accountNo,invNo};
 }
 
 function buildInvoiceHTML(key,unitNum){
-  const {d,wRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo}=invData(key,unitNum);
+  const {d,wRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,accountNo,invNo}=invData(key,unitNum);
   const complexName=ps('complex')||'Utility Management';
   const addr=[ps('addr1'),ps('addr2')].filter(Boolean).join(', ');
   const note=wRow.notes||(wRow.flagLeak?'Possible leak flagged - please investigate':'');
@@ -2058,12 +2097,12 @@ function buildInvoiceHTML(key,unitNum){
         <div class="lbl">Bill To</div>
         <div class="name">${ownerName}</div>
         ${ownerEmail?`<div style="font-size:11px;color:#5A7099">${ownerEmail}</div>`:''}
+        ${accountNo?`<div style="font-size:11px;color:#5A7099">Account: ${accountNo}</div>`:''}
         <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
       </div>
       <div class="chips">
         <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(0)} kl</div></div>
         <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
-        <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
       <table>
         <thead><tr>
@@ -2114,7 +2153,7 @@ function buildInvoiceHTML(key,unitNum){
 
 function buildInvoicePDF(key,unitNum,autoOpen=true){
   const {jsPDF}=window.jspdf;
-  const {d,wRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,invNo}=invData(key,unitNum);
+  const {d,wRow,wO,wC,eO,eC,wUsage,eUsage,wCharge,eCharge,total,invoiceDate,dueDate,fmtDate,ownerName,ownerEmail,accountNo,invNo}=invData(key,unitNum);
   const complexName=ps('complex')||'Utility Management';
   const note=wRow.notes||(wRow.flagLeak?'Possible leak flagged - please investigate':'');
 
@@ -2153,6 +2192,7 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(31,56,100);
   doc.text(ownerName,15,y); y+=6;
   if(ownerEmail){ doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90,112,153); doc.text(ownerEmail,15,y); y+=5; }
+  if(accountNo){ doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90,112,153); doc.text('Account: '+accountNo,15,y); y+=5; }
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(46,117,182);
   doc.text('Unit '+unitNum+'  |  '+complexName,15,y); y+=12;
 
@@ -2486,7 +2526,10 @@ async function restoreGithubBackup(){
     propSettings={...propSettings,...payload.propSettings};
     savePropToDB();
 
-    if(Array.isArray(payload.extraItems)) setExtraItems(payload.extraItems);
+    if(Array.isArray(payload.extraItems)){
+      setExtraItems(payload.extraItems);
+      await syncExtraItemsToDB();
+    }
 
     updateHeaderComplex();
     renderTabs();
@@ -2607,6 +2650,8 @@ function wipeAllData(){
   if(!confirm('⚠️ Permanently delete ALL data from the local database? This cannot be undone.'))return;
   if(!confirm('Last chance — wipe everything?'))return;
   Object.keys(months).forEach(k=>{delete months[k];dbDelete(k);});
+  getExtraItems().forEach(i=>dbDeleteExtraItem(i.id));
+  setExtraItems([]);
   activeKey=null;
   document.getElementById('activeBadge').textContent='No month selected';
   document.getElementById('tabsRow').innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';
@@ -3007,6 +3052,7 @@ showMobileNav();
 // UNIT OWNER MANAGEMENT
 // ═══════════════════════════════════════════════════════════
 let units={}; // key: unitNum (string) → {unit,first,last,email,phone,notes}
+let extraItems=[]; // shared extra meter items from central DB
 let editingUnit=null;
 
 function dbSaveUnit(u){
@@ -3021,6 +3067,9 @@ function dbSaveUnit(u){
     last2:u.last2||'',
     email2:u.email2||'',
     phone2:u.phone2||'',
+    account_no:u.accountNo||'',
+    water_meter_no:u.waterMeterNo||'',
+    elec_meter_no:u.elecMeterNo||'',
     notes:u.notes||''
   };
   sbFetch('unit_owners','', 'POST', rec).catch(()=>showToast('Failed to save unit owner','#C00000'));
@@ -3035,9 +3084,72 @@ function dbLoadAllUnits(){
   return sbFetch('unit_owners','?select=*&order=unit.asc').then(rows=>rows||[]);
 }
 
+function dbSaveExtraItem(item){
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return Promise.resolve();}
+  const rec={
+    id:item.id,
+    name:item.name||'',
+    notes:item.notes||'',
+    apply_water:Boolean(item.applyWater),
+    apply_elec:Boolean(item.applyElec),
+    water_meter_no:item.waterMeterNo||'',
+    elec_meter_no:item.elecMeterNo||''
+  };
+  return sbFetch('extra_meter_items','', 'POST', rec).catch(()=>showToast('Failed to save extra meter item','#C00000'));
+}
+
+function dbDeleteExtraItem(id){
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return Promise.resolve();}
+  return sbFetch('extra_meter_items',`?id=eq.${encodeURIComponent(id)}`,'DELETE').catch(()=>showToast('Failed to delete extra meter item','#C00000'));
+}
+
+function dbLoadAllExtraItems(){
+  return sbFetch('extra_meter_items','?select=*&order=name.asc').then(rows=>rows||[]);
+}
+
+async function loadExtraItemsFromDB(){
+  const rows=await dbLoadAllExtraItems();
+  extraItems=(rows||[]).map(r=>(
+    {
+      id:String(r.id||''),
+      name:r.name||'',
+      notes:r.notes||'',
+      applyWater:Boolean(r.apply_water),
+      applyElec:Boolean(r.apply_elec),
+      waterMeterNo:r.water_meter_no||'',
+      elecMeterNo:r.elec_meter_no||''
+    }
+  ));
+
+  // One-time migration path from old localStorage storage.
+  if(!extraItems.length){
+    try{
+      const legacy=JSON.parse(localStorage.getItem('mra_extra_meter_items')||'[]');
+      if(Array.isArray(legacy)&&legacy.length){
+        extraItems=legacy;
+        await Promise.all(extraItems.map(i=>dbSaveExtraItem(i)));
+        localStorage.removeItem('mra_extra_meter_items');
+      }
+    }catch{}
+  }
+}
+
+async function syncExtraItemsToDB(){
+  const rows=await dbLoadAllExtraItems();
+  await Promise.all((rows||[]).map(r=>dbDeleteExtraItem(r.id)));
+  await Promise.all((extraItems||[]).map(i=>dbSaveExtraItem(i)));
+}
+
 async function loadUnitsFromDB(){
   const saved=await dbLoadAllUnits();
-  saved.forEach(u=>{ units[String(u.unit)]=u; });
+  saved.forEach(u=>{
+    units[String(u.unit)]={
+      ...u,
+      accountNo:u.accountNo||u.account_no||'',
+      waterMeterNo:u.waterMeterNo||u.water_meter_no||'',
+      elecMeterNo:u.elecMeterNo||u.elec_meter_no||''
+    };
+  });
 }
 
 function getUnitOwner(unitNum){
@@ -3054,13 +3166,13 @@ function removeUnit(unitNum){
 
 function exportUnitsExcel(){
   const wb=XLSX.utils.book_new();
-  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
+  const headers=['Unit Number','Water Meter Number','Elec Meter Number','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
   const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
-    u.unit,u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
+    u.unit,u.waterMeterNo||u.water_meter_no||'',u.elecMeterNo||u.elec_meter_no||'',u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
     u.email||'',u.phone||'',u.first2||'',u.last2||'',u.email2||'',u.phone2||'',u.notes||''
   ]);
   const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[8,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
+  ws['!cols']=[8,16,16,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
   XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('Unit directory exported');
@@ -3122,6 +3234,7 @@ function showUnitInfo(unitNum, e){
         ${u.phone2?`<div style="font-size:.74rem;color:var(--muted)">${u.phone2}</div>`:''}
       </div>`:''}
       ${u.notes?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem">${u.notes}</div>`:''}
+      ${(u.accountNo||u.account_no)?`<div style="font-size:.72rem;color:var(--muted);border-top:1px solid var(--sky);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;color:var(--navy)">Account:</span> ${u.accountNo||u.account_no}</div>`:''}
       <div style="margin-top:.75rem;display:flex;gap:.5rem">
         <button onclick="goToUnitsPage(${unitNum})" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--blue);border-radius:6px;background:#fff;color:var(--blue);cursor:pointer;font-weight:600">Edit</button>
         <button onclick="document.getElementById('unitInfoPopup').remove()" style="font-size:.72rem;padding:.28rem .7rem;border:1.5px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer;font-weight:600">Close</button>
@@ -3168,6 +3281,9 @@ function saveUnit(){
     last2:document.getElementById('uoLast2')?.value.trim()||'',
     email2:document.getElementById('uoEmail2')?.value.trim()||'',
     phone2:document.getElementById('uoPhone2')?.value.trim()||'',
+    accountNo:document.getElementById('uoAccountNo')?.value.trim()||'',
+    waterMeterNo:document.getElementById('uoWaterMeter')?.value.trim()||'',
+    elecMeterNo:document.getElementById('uoElecMeter')?.value.trim()||'',
     notes:document.getElementById('uoNotes').value.trim()
   };
   units[String(unitNum)]=u;
@@ -3187,6 +3303,9 @@ function editUnit(unitNum){
   set('uoEmail',u.email); set('uoPhone',u.phone);
   set('uoFirst2',u.first2); set('uoLast2',u.last2);
   set('uoEmail2',u.email2); set('uoPhone2',u.phone2);
+  set('uoAccountNo',u.accountNo||u.account_no);
+  set('uoWaterMeter',u.waterMeterNo||u.water_meter_no);
+  set('uoElecMeter',u.elecMeterNo||u.elec_meter_no);
   set('uoNotes',u.notes);
   document.getElementById('unitFormTitle').textContent='Editing Unit '+unitNum;
   document.getElementById('uoSaveBtn').textContent='Update Unit';
@@ -3195,7 +3314,7 @@ function editUnit(unitNum){
 }
 
 function clearUnitForm(){
-  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoNotes'].forEach(id=>{
+  ['uoUnit','uoFirst','uoLast','uoEmail','uoPhone','uoFirst2','uoLast2','uoEmail2','uoPhone2','uoAccountNo','uoWaterMeter','uoElecMeter','uoNotes'].forEach(id=>{
     const el=document.getElementById(id); if(el)el.value='';
   });
   document.getElementById('unitFormTitle').textContent='Add / Edit Unit';
@@ -3204,15 +3323,12 @@ function clearUnitForm(){
 }
 
 // ═══════════════ EXTRA METER ITEMS ═══════════════
-const EXTRA_ITEMS_KEY='mra_extra_meter_items';
-
 function getExtraItems(){
-  try{return JSON.parse(localStorage.getItem(EXTRA_ITEMS_KEY)||'[]');}
-  catch{return [];}
+  return Array.isArray(extraItems)?extraItems:[];
 }
 
 function setExtraItems(arr){
-  localStorage.setItem(EXTRA_ITEMS_KEY,JSON.stringify(arr));
+  extraItems=Array.isArray(arr)?arr:[];
 }
 
 function ensureExtraStore(monthKey){
@@ -3228,7 +3344,11 @@ function getExtraRows(monthKey,type){
   const defs=getExtraItems().filter(i=>type==='water'?i.applyWater:i.applyElec);
   return defs.map(def=>{
     const row=getExtraItemRow(monthKey,type,def.id);
-    if(row) row.itemName=def.name;
+    if(row){
+      row.itemName=def.name;
+      row.waterMeterNo=def.waterMeterNo||'';
+      row.elecMeterNo=def.elecMeterNo||'';
+    }
     return row;
   }).filter(Boolean);
 }
@@ -3245,13 +3365,15 @@ function renderExtraItemsTable(){
   if(!tbody)return;
   const items=getExtraItems();
   if(!items.length){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No extra meter items defined</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No extra meter items defined</td></tr>';
     return;
   }
   tbody.innerHTML=items.map(it=>`<tr>
     <td style="font-weight:600">${it.name}</td>
     <td style="text-align:center">${it.applyWater?'✔':'—'}</td>
     <td style="text-align:center">${it.applyElec?'✔':'—'}</td>
+    <td style="font-family:var(--mono);font-size:.74rem">${it.waterMeterNo||'—'}</td>
+    <td style="font-family:var(--mono);font-size:.74rem">${it.elecMeterNo||'—'}</td>
     <td style="font-size:.74rem;color:var(--muted)">${it.notes||''}</td>
     <td style="display:flex;gap:.4rem">
       <button onclick="editExtraItem('${it.id}')" style="font-size:.7rem;padding:.24rem .6rem;border:1.5px solid var(--blue);border-radius:5px;background:#fff;color:var(--blue);cursor:pointer;font-family:var(--sans);font-weight:600">Edit</button>
@@ -3263,6 +3385,8 @@ function renderExtraItemsTable(){
 function saveExtraItem(){
   const name=(document.getElementById('extraItemName')?.value||'').trim();
   const notes=(document.getElementById('extraItemNotes')?.value||'').trim();
+  const waterMeterNo=(document.getElementById('extraItemWaterMeter')?.value||'').trim();
+  const elecMeterNo=(document.getElementById('extraItemElecMeter')?.value||'').trim();
   const applyWater=Boolean(document.getElementById('extraItemWater')?.checked);
   const applyElec=Boolean(document.getElementById('extraItemElec')?.checked);
   const editId=(document.getElementById('extraItemEditId')?.value||'').trim();
@@ -3270,13 +3394,18 @@ function saveExtraItem(){
   if(!applyWater&&!applyElec){showToast('Select Water, Electricity, or both','#C55A11');return;}
 
   const items=getExtraItems();
+  let savedItem=null;
   if(editId){
     const idx=items.findIndex(i=>i.id===editId);
-    if(idx>=0) items[idx]={...items[idx],name,notes,applyWater,applyElec};
+    if(idx>=0) items[idx]={...items[idx],name,notes,waterMeterNo,elecMeterNo,applyWater,applyElec};
+    savedItem=idx>=0?items[idx]:null;
   }else{
-    items.push({id:'item_'+Date.now().toString(36),name,notes,applyWater,applyElec});
+    savedItem={id:'item_'+Date.now().toString(36),name,notes,waterMeterNo,elecMeterNo,applyWater,applyElec};
+    items.push(savedItem);
   }
   setExtraItems(items);
+  if(savedItem) dbSaveExtraItem(savedItem);
+  scheduleGithubAutoBackup('extra-item-save');
   renderExtraItemsTable();
   clearExtraItemForm();
   if(activeKey) renderEntryContent();
@@ -3289,6 +3418,8 @@ function editExtraItem(id){
   const set=(el,v)=>{const n=document.getElementById(el);if(n)n.value=v||'';};
   set('extraItemName',item.name);
   set('extraItemNotes',item.notes);
+  set('extraItemWaterMeter',item.waterMeterNo);
+  set('extraItemElecMeter',item.elecMeterNo);
   document.getElementById('extraItemWater').checked=Boolean(item.applyWater);
   document.getElementById('extraItemElec').checked=Boolean(item.applyElec);
   document.getElementById('extraItemEditId').value=id;
@@ -3299,13 +3430,15 @@ function deleteExtraItem(id){
   if(!confirm('Delete this extra meter item? Existing readings for it in past months will remain but no longer display.'))return;
   const items=getExtraItems().filter(i=>i.id!==id);
   setExtraItems(items);
+  dbDeleteExtraItem(id);
+  scheduleGithubAutoBackup('extra-item-delete');
   renderExtraItemsTable();
   if(activeKey) renderEntryContent();
   showToast('Extra item deleted','#C55A11');
 }
 
 function clearExtraItemForm(){
-  ['extraItemName','extraItemNotes','extraItemEditId'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['extraItemName','extraItemNotes','extraItemWaterMeter','extraItemElecMeter','extraItemEditId'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const w=document.getElementById('extraItemWater'); if(w)w.checked=false;
   const e=document.getElementById('extraItemElec'); if(e)e.checked=false;
   const t=document.getElementById('extraItemFormTitle'); if(t)t.textContent='Add Extra Meter Item';
@@ -3318,6 +3451,9 @@ function renderUnitsTable(){
   const sorted=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
   const filtered=search?sorted.filter(u=>
     String(u.unit).includes(search)||
+    (u.accountNo||u.account_no||'').toLowerCase().includes(search)||
+    (u.waterMeterNo||u.water_meter_no||'').toLowerCase().includes(search)||
+    (u.elecMeterNo||u.elec_meter_no||'').toLowerCase().includes(search)||
     (u.first||'').toLowerCase().includes(search)||
     (u.last||'').toLowerCase().includes(search)||
     (u.email||'').toLowerCase().includes(search)||
@@ -3327,7 +3463,7 @@ function renderUnitsTable(){
   ):sorted;
 
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">${search?'No units match your search':'No units added yet'}</td></tr>`;
     return;
   }
   tbody.innerHTML=filtered.map(u=>{
@@ -3335,6 +3471,9 @@ function renderUnitsTable(){
     const p2=[u.first2,u.last2].filter(Boolean).join(' ')||'';
     return `<tr>
       <td style="font-family:var(--mono);font-weight:600;color:var(--navy)">Unit ${u.unit}</td>
+      <td style="font-family:var(--mono);font-size:.74rem">${u.accountNo||u.account_no||'—'}</td>
+      <td style="font-family:var(--mono);font-size:.74rem">${u.waterMeterNo||u.water_meter_no||'—'}</td>
+      <td style="font-family:var(--mono);font-size:.74rem">${u.elecMeterNo||u.elec_meter_no||'—'}</td>
       <td><div style="font-weight:600">${p1}</div>${u.phone?`<div style="font-size:.7rem;color:var(--muted)">${u.phone}</div>`:''}</td>
       <td style="font-size:.76rem;font-family:var(--mono)">${u.email||'—'}</td>
       <td style="font-size:.74rem;color:var(--muted)">${u.phone||'—'}</td>
