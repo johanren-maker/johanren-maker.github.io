@@ -237,7 +237,7 @@ function emailInvoice(){
   const {wUsage,eUsage,wCharge,eCharge,total,dueDate,fmtDate,invNo,ownerName}=invData(previewKey,previewUnit);
   const complexName=ps('complex')||'Utility Management';
   const subject='Utility Invoice '+invNo+' — Unit '+previewUnit+' — '+d.label;
-  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+wUsage.toFixed(4)+' kl @ R'+d.waterRate+'/kl = R'+wCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nElectricity: '+eUsage.toFixed(0)+' kWh @ R'+d.elecRate+'/kWh = R'+eCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nTotal Due: R'+total.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
+  const body='Dear '+ownerName+',\n\nPlease find your utility invoice for '+d.label+'.\n\nInvoice Number: '+invNo+'\nUnit: '+previewUnit+'\nBilling Period: '+d.label+'\nDue Date: '+fmtDate(dueDate)+'\n\nCHARGES SUMMARY\nWater: '+Math.round(wUsage)+' kl @ R'+d.waterRate+'/kl = R'+wCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nElectricity: '+Math.round(eUsage)+' kWh @ R'+d.elecRate+'/kWh = R'+eCharge.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\nTotal Due: R'+total.toLocaleString('en-ZA',{minimumFractionDigits:2})+'\n\nPayment due: '+fmtDate(dueDate)+(ps('bank')?'\n\nBank: '+ps('bank')+'\nAccount: '+ps('accNo')+'\nBranch: '+ps('branch'):'')+'\n\nKind regards,\n'+( ps('contact')||complexName)+'\n'+(ps('email')||'')+'\n'+(ps('phone')||'');
   window.open('mailto:'+emails.join(',')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
   showToast('Email client opened for '+emails.join(', '));
 }
@@ -1241,6 +1241,7 @@ td input.input-error{border-color:var(--red)!important;background:#FFF5F5!import
 <script>
 const MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const months={};
+let units={};
 let activeKey=null, activeType='water', charts={};
 
 // ═══════════════ SUPABASE CONFIG ═══════════════
@@ -1342,9 +1343,8 @@ async function dbSave(key){
   if(dbOnline){
     try{ await sbFetch('months','POST',record); }
     catch(e){ console.error('sbSave months failed',e); }
-  }
-  // Always write to local IDB fallback
-  if(db){
+  } else if(db){
+    // Only write to local IDB when Supabase is unavailable (offline fallback)
     try{ db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]}); }
     catch(e){ console.error('idbSave failed',e); }
   }
@@ -1712,9 +1712,9 @@ function renderSumStrip(c){
   const s=document.createElement('div'); s.className='sum-strip';
   s.innerHTML=`
     <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
-      <div class="sv">${tU.toFixed(activeType==='water'?4:0)}</div><div class="ss">${unit} this month</div></div>
+      <div class="sv">${Math.round(tU)}</div><div class="ss">${unit} this month</div></div>
     <div class="stat"><div class="sl">💰 Total Charge</div>
-      <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
+      <div class="sv">R${fmt(tC||0)}</div><div class="ss">@ R${rate}/${unit}</div></div>
     <div class="stat"><div class="sl">📋 Captured</div>
       <div class="sv">${filled}/${d.units}</div><div class="ss">readings entered</div></div>
     ${activeType==='water'?`<div class="stat ${leaks>0?'warn':''}">
@@ -2057,18 +2057,18 @@ function buildRecovery(key){
       <div class="rc-label">💧 Water Recovery — ${d.label}</div>
       <div class="rc-type">${rl(wD)}</div>
       <div class="rc-val">${wD>=0?'+':'−'}R${fmt(Math.abs(wD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(4)} kl)<br>
+      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${Math.round(wT.usage)} kl)<br>
         Municipal: <strong>R${fmt(wM)}</strong> (${wUM||'?'} kl)<br>
-        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(4)} kl</div>
+        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${Math.round(wT.usage-wUM)} kl</div>
       ${wM>0?`<div class="rc-pct">${pct(wD,wM)}</div>`:''}
     </div>
     <div class="rec-card ${rc(eD)}">
       <div class="rc-label">⚡ Electricity Recovery — ${d.label}</div>
       <div class="rc-type">${rl(eD)}</div>
       <div class="rc-val">${eD>=0?'+':'−'}R${fmt(Math.abs(eD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${eT.usage.toFixed(0)} kWh)<br>
+      <div class="rc-det">Collected: <strong>R${fmt(eT.charge)}</strong> (${Math.round(eT.usage)} kWh)<br>
         Municipal: <strong>R${fmt(eM)}</strong> (${eUM||'?'} kWh)<br>
-        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${(eT.usage-eUM).toFixed(0)} kWh</div>
+        Usage gap: ${(eT.usage-eUM)>=0?'+':''}${Math.round(eT.usage-eUM)} kWh</div>
       ${eM>0?`<div class="rc-pct">${pct(eD,eM)}</div>`:''}
     </div>`;
   return strip;
@@ -2129,7 +2129,7 @@ function renderCmpResults(){
 
   const grid=document.createElement('div'); grid.className='cmp-grid';
   grid.innerHTML=
-    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',4)+
+    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',0)+
     cmpCard('💧 Water Charge',wTA.charge,wTB.charge,'R')+
     cmpCard('⚡ Electricity Usage',eTA.usage,eTB.usage,'kWh',0)+
     cmpCard('⚡ Electricity Charge',eTA.charge,eTB.charge,'R')+
@@ -2142,7 +2142,7 @@ function renderCmpResults(){
     const isW=type==='water';
     const rateA=isW?dA.waterRate:dA.elecRate;
     const rateB=isW?dB.waterRate:dB.elecRate;
-    const unit=isW?'kl':'kWh'; const dp=isW?4:0;
+    const unit=isW?'kl':'kWh'; const dp=0;
     const card=document.createElement('div'); card.className='card';
     card.innerHTML=`<div class="card-head"><div><h2>${isW?'💧 Water':'⚡ Electricity'} — Unit by Unit</h2>
       <div class="sub"><span style="color:var(--blue)">Blue = ${dA.label}</span> &nbsp;·&nbsp; <span style="color:var(--orange)">Orange = ${dB.label}</span></div></div></div>`;
@@ -2311,7 +2311,7 @@ function renderDashboard(){
   const ic1=document.createElement('div'); ic1.className='ins-card';
   ic1.innerHTML=`<h4>💧 Top 5 Water Consumers</h4>${wTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(4)} kl</span></div>`
+    <span class="irv ${u.usage>20?'amber':''}">${Math.round(u.usage)} kl</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic1);
 
   const eTop=[]; keys.forEach(key=>{months[key].elec.forEach(r=>{
@@ -2334,7 +2334,7 @@ function renderDashboard(){
     ${leakList.length?leakList.map(l=>`<div class="leak-item">
       <div><span class="li-u">Unit ${l.unit}</span><br>
         <span class="li-m">${l.month} · ${l.notes||'Possible leak'}</span></div>
-      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?l.usage.toFixed(4)+' kl':'—'}</span>
+      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?Math.round(l.usage)+' kl':'—'}</span>
     </div>`).join(''):'<div class="no-data">No problems flagged 👍</div>'}`; ig.appendChild(ic3);
 
   const ic4=document.createElement('div'); ic4.className='ins-card';
@@ -2603,8 +2603,8 @@ function buildInvoiceHTML(key,unitNum){
         <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
       </div>
       <div class="chips">
-        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(4)} kl</div></div>
-        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
+        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${Math.round(wUsage)} kl</div></div>
+        <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${Math.round(eUsage)} kWh</div></div>
         <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
       <table>
@@ -2616,7 +2616,7 @@ function buildInvoiceHTML(key,unitNum){
             <td>Water Consumption</td>
             <td style="text-align:right">${!isNaN(wO)?wO.toFixed(4):'--'}</td>
             <td style="text-align:right">${!isNaN(wC)?wC.toFixed(4):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(4)} kl</td>
+            <td style="text-align:right;color:#2E75B6">${Math.round(wUsage)} kl</td>
             <td style="text-align:right">R${d.waterRate}/kl</td>
             <td style="text-align:right;font-weight:700">R${fmt(wCharge)}</td>
           </tr>
@@ -2706,8 +2706,8 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
     doc.setFont('helvetica','bold'); doc.setFontSize(9);
     doc.text(value,lx+3,ly+5);
   }
-  chip(15,y,'WATER USAGE',wUsage.toFixed(4)+' kl',46,117,182);
-  chip(70,y,'ELECTRICITY',eUsage.toFixed(0)+' kWh',197,90,17);
+  chip(15,y,'WATER USAGE',Math.round(wUsage)+' kl',46,117,182);
+  chip(70,y,'ELECTRICITY',Math.round(eUsage)+' kWh',197,90,17);
   chip(125,y,'TOTAL DUE','R'+fmt(total),31,56,100);
   y+=20;
 
@@ -2740,10 +2740,10 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
 
   tRow('Water Consumption',
     !isNaN(wO)?wO.toFixed(4):'--', !isNaN(wC)?wC.toFixed(4):'--',
-    wUsage.toFixed(4)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
+    Math.round(wUsage)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
   tRow('Electricity Consumption',
     !isNaN(eO)?eO.toFixed(0):'--', !isNaN(eC)?eC.toFixed(0):'--',
-    eUsage.toFixed(0)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
+    Math.round(eUsage)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
 
   if(note){
     y+=2; doc.setFontSize(7.5); doc.setTextColor(192,0,0); doc.setFont('helvetica','italic');
