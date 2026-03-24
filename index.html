@@ -411,6 +411,22 @@ input[type=file]{display:none}
 .auth-btn:hover{background:var(--blue);transform:translateY(-1px)}
 .auth-error{background:var(--red-bg);color:var(--red);border-radius:6px;padding:.55rem .85rem;
   font-size:.78rem;font-weight:600;margin-top:.75rem;text-align:center;display:none}
+.auth-test{margin-top:.9rem;border:1.5px solid var(--border);border-radius:8px;background:var(--sky2)}
+.auth-test summary{cursor:pointer;list-style:none;padding:.58rem .75rem;font-size:.68rem;
+  font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)}
+.auth-test summary::-webkit-details-marker{display:none}
+.auth-test[open] summary{border-bottom:1px solid var(--border)}
+.auth-test-body{padding:.7rem .75rem .75rem}
+.auth-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.auth-mini-grid input,.auth-mini-grid select{width:100%;padding:.45rem .58rem;border:1.5px solid var(--border);
+  border-radius:6px;font-family:var(--sans);font-size:.78rem;background:#fff;color:var(--text)}
+.auth-mini-grid input:focus,.auth-mini-grid select:focus{outline:none;border-color:var(--blue)}
+.auth-mini-btn{margin-top:.55rem;width:100%;padding:.52rem;background:#2E75B6;color:#fff;border:none;
+  border-radius:7px;font-family:var(--sans);font-weight:700;font-size:.78rem;cursor:pointer}
+.auth-mini-btn:hover{background:#1F62A0}
+.auth-mini-msg{display:none;margin-top:.5rem;font-size:.72rem;border-radius:6px;padding:.45rem .55rem}
+.auth-mini-msg.err{background:var(--red-bg);color:var(--red)}
+.auth-mini-msg.ok{background:var(--green-bg);color:var(--green)}
 .auth-footer{color:rgba(255,255,255,.4);font-size:.68rem;margin-top:1.5rem;text-align:center}
 /* USER CHIP in header */
 .user-chip{display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);
@@ -801,43 +817,80 @@ input[type=file]{display:none}
 <input type="file" id="importReadingsFile2" accept=".xlsx,.xls" style="display:none">
 
 <script>
+// ═══════════════ SUPABASE CREDENTIALS ═══════════════
+window.MRA_SUPABASE_URL = 'https://hbfxodedseidrtlyptan.supabase.co';
+window.MRA_SUPABASE_KEY = 'sb_publishable_O3MktwED0q5maChRWe4krA_uhj9RAO7';
+
 const MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const months={};
 let activeKey=null, activeType='water', charts={};
 
-// ═══════════════ INDEXEDDB ═══════════════
-const DB_NAME='MeterReadingsDB', DB_VER=4, STORE='months';
-let db=null;
+// ═══════════════ SUPABASE ═══════════════
+const SB_URL=(window.MRA_SUPABASE_URL||localStorage.getItem('mra_supabase_url')||'').trim().replace(/\/$/, '');
+const SB_KEY=(window.MRA_SUPABASE_KEY||localStorage.getItem('mra_supabase_key')||'').trim();
+const USE_SUPABASE_DATA=Boolean(SB_URL&&SB_KEY);
+const USE_SUPABASE_USERS=USE_SUPABASE_DATA;
 
-function openDB(){
-  return new Promise((res,rej)=>{
-    const req=indexedDB.open(DB_NAME,DB_VER);
-    req.onupgradeneeded=e=>{
-      const d=e.target.result;
-      if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'key'});
-      if(!d.objectStoreNames.contains('propSettings')) d.createObjectStore('propSettings',{keyPath:'key'});
-      if(!d.objectStoreNames.contains('users')) d.createObjectStore('users',{keyPath:'username'});
-      if(!d.objectStoreNames.contains('unitOwners')) d.createObjectStore('unitOwners',{keyPath:'unit'});
-    };
-    req.onsuccess=e=>{db=e.target.result;res(db);};
-    req.onerror=e=>rej(e.target.error);
+async function sbFetch(table,query='',method='GET',body=null){
+  if(!USE_SUPABASE_DATA) throw new Error('Supabase is not configured.');
+  const headers={
+    apikey:SB_KEY,
+    Authorization:`Bearer ${SB_KEY}`,
+    Accept:'application/json',
+    'Content-Type':'application/json'
+  };
+  if(method==='POST'||method==='PATCH') headers.Prefer='resolution=merge-duplicates,return=minimal';
+  const res=await fetch(`${SB_URL}/rest/v1/${table}${query}`,{
+    method,
+    headers,
+    body:body?JSON.stringify(body):undefined
   });
+  if(!res.ok) throw new Error(`Supabase ${table} request failed: ${res.status}`);
+  if(res.status===204) return null;
+  const text=await res.text();
+  return text?JSON.parse(text):null;
+}
+
+async function openDB(){
+  if(!USE_SUPABASE_DATA) throw new Error('Supabase is not configured.');
+  return true;
 }
 function dbSave(key){
-  if(!db)return;
-  db.transaction(STORE,'readwrite').objectStore(STORE).put({key,...months[key]});
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
+  const d=months[key];
+  if(!d)return;
+  const rec={
+    key,
+    label:d.label,
+    month:d.month,
+    year:d.year,
+    units:d.units,
+    water_rate:d.waterRate,
+    elec_rate:d.elecRate,
+    water:d.water,
+    elec:d.elec,
+    billing:d.billing
+  };
+  sbFetch('months','', 'POST', rec).catch(()=>showToast('Failed to save month to Supabase','#C00000'));
 }
 function dbDelete(key){
-  if(!db)return;
-  db.transaction(STORE,'readwrite').objectStore(STORE).delete(key);
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
+  sbFetch('months',`?key=eq.${encodeURIComponent(key)}`,'DELETE').catch(()=>showToast('Failed to delete month from Supabase','#C00000'));
 }
-function dbLoadAll(){
-  return new Promise((res,rej)=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(STORE,'readonly').objectStore(STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=e=>rej(e.target.error);
-  });
+async function dbLoadAll(){
+  const rows=await sbFetch('months','?select=*&order=key.asc');
+  return (rows||[]).map(r=>({
+    key:r.key,
+    label:r.label,
+    month:r.month,
+    year:r.year,
+    units:r.units,
+    waterRate:r.water_rate,
+    elecRate:r.elec_rate,
+    water:r.water||[],
+    elec:r.elec||[],
+    billing:r.billing||{}
+  }));
 }
 
 // ═══════════════ INIT ═══════════════
@@ -859,7 +912,7 @@ async function init(){
     await openDB();
     // Seed default admin if no users exist
     const existingUsers=await dbGetAllUsers();
-    if(!existingUsers.length) dbSaveUser(DEFAULT_ADMIN);
+    if(!existingUsers.length) await dbSaveUser(DEFAULT_ADMIN);
 
     await loadPropFromDB();
     await loadUnitsFromDB();
@@ -983,6 +1036,36 @@ function switchType(t){activeType=t;renderEntryContent();
   }
 }
 
+// ── Validation helper ──
+function showValidationError(inputEl, msg){
+  if(!inputEl)return;
+  inputEl.classList.add('input-error');
+  const existing=inputEl.parentNode.querySelector('.val-msg');
+  if(existing) existing.remove();
+  const span=document.createElement('span');
+  span.className='val-msg'; span.textContent=msg;
+  inputEl.parentNode.appendChild(span);
+  inputEl.focus();
+}
+
+function getReadingNumber(type, value){
+  const num=parseFloat(value);
+  if(isNaN(num)) return NaN;
+  return type==='water'?Math.round(num):num;
+}
+
+function getUsage(type, opening, closing){
+  const o=getReadingNumber(type, opening);
+  const c=getReadingNumber(type, closing);
+  return (!isNaN(o)&&!isNaN(c)&&c>=o)?c-o:null;
+}
+
+function formatReadingInput(type, value){
+  if(value===''||value===null||typeof value==='undefined') return '';
+  const num=getReadingNumber(type, value);
+  return isNaN(num)?value:String(num);
+}
+
 function renderSumStrip(c){
   const d=months[activeKey];
   const rows=activeType==='water'?d.water:d.elec;
@@ -990,14 +1073,14 @@ function renderSumStrip(c){
   const unit=activeType==='water'?'kl':'kWh';
   let tU=0,tC=0,filled=0,leaks=0;
   rows.forEach(r=>{
-    const o=parseFloat(r.opening),cl=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(cl)&&cl>=o){const u=cl-o;tU+=u;tC+=u*rate;filled++;}
+    const u=getUsage(activeType, r.opening, r.closing);
+    if(u!==null){tU+=u;tC+=u*rate;filled++;}
     if(activeType==='water'&&r.flagLeak)leaks++;
   });
   const s=document.createElement('div'); s.className='sum-strip';
   s.innerHTML=`
     <div class="stat"><div class="sl">${activeType==='water'?'💧 Water':'⚡ Electricity'} Usage</div>
-      <div class="sv">${tU.toFixed(activeType==='water'?4:0)}</div><div class="ss">${unit} this month</div></div>
+      <div class="sv">${tU.toFixed(0)}</div><div class="ss">${unit} this month</div></div>
     <div class="stat"><div class="sl">💰 Total Charge</div>
       <div class="sv">R${fmt(tC)}</div><div class="ss">@ R${rate}/${unit}</div></div>
     <div class="stat"><div class="sl">📋 Captured</div>
@@ -1013,7 +1096,7 @@ function renderDataTable(c){
   const rows=activeType==='water'?d.water:d.elec;
   const rate=activeType==='water'?d.waterRate:d.elecRate;
   const unit=activeType==='water'?'kl':'kWh';
-  const isW=activeType==='water'; const dp=isW?4:0;
+  const isW=activeType==='water'; const dp=0;
 
   const card=document.createElement('div'); card.className='card';
   const hd=document.createElement('div'); hd.className='card-head';
@@ -1037,14 +1120,13 @@ function renderDataTable(c){
   rows.forEach((row,idx)=>{
     const tr=document.createElement('tr');
     if(isW&&row.flagLeak) tr.classList.add('lr');
-    const o=parseFloat(row.opening),cl=parseFloat(row.closing);
-    const u=(!isNaN(o)&&!isNaN(cl)&&cl>=o)?(cl-o):null;
+    const u=getUsage(activeType, row.opening, row.closing);
     const ch=u!==null?u*rate:null;
     if(u!==null){tU+=u;tC+=ch;}
     tr.innerHTML=`<td class="ul" style="white-space:nowrap">Unit ${row.unit}<button onclick="showUnitInfo(${row.unit},event)" title="Owner info" style="margin-left:.4rem;background:none;border:1.5px solid var(--border);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:.6rem;color:var(--blue);font-weight:700;line-height:1;padding:0;vertical-align:middle">i</button></td>
-      <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.opening}"
+      <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,row.opening)}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'opening',this.value)"></td>
-      <td class="n"><input type="number" step="0.0001" placeholder="—" value="${row.closing}"
+      <td class="n"><input type="number" step="1" placeholder="—" value="${formatReadingInput(activeType,row.closing)}"
         onchange="upRow('${activeKey}','${activeType}',${idx},'closing',this.value)"></td>
       <td class="n"><span class="uv">${u!==null?u.toFixed(dp):'—'}</span></td>
       <td class="n"><span class="cv">${ch!==null?'R'+fmt(ch):'—'}</span></td>
@@ -1071,7 +1153,34 @@ function upRow(key,type,idx,field,value){
     else if(value==='leak') months[key][type][idx].notes='Possible leak';
     else months[key][type][idx].notes='';
   } else {
-    months[key][type][idx][field]=value;
+    // ── Numeric reading validation ──
+    if(field==='opening'||field==='closing'){
+      const num=getReadingNumber(type, value);
+      const row=months[key][type][idx];
+      const otherField=field==='opening'?'closing':'opening';
+      const otherVal=getReadingNumber(type, row[otherField]);
+
+      // Find the input element for error messaging
+      const inputEl=event?.target;
+      if(inputEl) inputEl.classList.remove('input-error');
+
+      if(value!==''&&isNaN(num)){
+        showValidationError(inputEl,'Must be a number');
+        return;
+      }
+
+      if(!isNaN(num)&&!isNaN(otherVal)&&field==='closing'&&num<otherVal){
+        showValidationError(inputEl,'Closing ('+num.toFixed(0)+') cannot be less than opening ('+otherVal.toFixed(0)+')');
+        return;
+      }
+      if(!isNaN(num)&&!isNaN(otherVal)&&field==='opening'&&num>otherVal){
+        showValidationError(inputEl,'Opening ('+num.toFixed(0)+') cannot exceed closing ('+otherVal.toFixed(0)+')');
+        return;
+      }
+      months[key][type][idx][field]=value===''?'':String(num);
+    } else {
+      months[key][type][idx][field]=value;
+    }
   }
   dbSave(key); renderEntryContent();
 }
@@ -1201,8 +1310,8 @@ function upBilling(key,field,value){months[key].billing[field]=value;dbSave(key)
 function calcTotals(key,type){
   const d=months[key];
   return d[type].reduce((s,r)=>{
-    const o=parseFloat(r.opening),c=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(c)&&c>=o){s.usage+=c-o;s.charge+=(c-o)*(type==='water'?d.waterRate:d.elecRate);}
+    const usage=getUsage(type, r.opening, r.closing);
+    if(usage!==null){s.usage+=usage;s.charge+=usage*(type==='water'?d.waterRate:d.elecRate);}
     return s;
   },{usage:0,charge:0});
 }
@@ -1222,9 +1331,9 @@ function buildRecovery(key){
       <div class="rc-label">💧 Water Recovery — ${d.label}</div>
       <div class="rc-type">${rl(wD)}</div>
       <div class="rc-val">${wD>=0?'+':'−'}R${fmt(Math.abs(wD))}</div>
-      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(4)} kl)<br>
+      <div class="rc-det">Collected: <strong>R${fmt(wT.charge)}</strong> (${wT.usage.toFixed(0)} kl)<br>
         Municipal: <strong>R${fmt(wM)}</strong> (${wUM||'?'} kl)<br>
-        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(4)} kl</div>
+        Usage gap: ${(wT.usage-wUM)>=0?'+':''}${(wT.usage-wUM).toFixed(0)} kl</div>
       ${wM>0?`<div class="rc-pct">${pct(wD,wM)}</div>`:''}
     </div>
     <div class="rec-card ${rc(eD)}">
@@ -1294,7 +1403,7 @@ function renderCmpResults(){
 
   const grid=document.createElement('div'); grid.className='cmp-grid';
   grid.innerHTML=
-    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',4)+
+    cmpCard('💧 Water Usage',wTA.usage,wTB.usage,'kl',0)+
     cmpCard('💧 Water Charge',wTA.charge,wTB.charge,'R')+
     cmpCard('⚡ Electricity Usage',eTA.usage,eTB.usage,'kWh',0)+
     cmpCard('⚡ Electricity Charge',eTA.charge,eTB.charge,'R')+
@@ -1307,7 +1416,7 @@ function renderCmpResults(){
     const isW=type==='water';
     const rateA=isW?dA.waterRate:dA.elecRate;
     const rateB=isW?dB.waterRate:dB.elecRate;
-    const unit=isW?'kl':'kWh'; const dp=isW?4:0;
+    const unit=isW?'kl':'kWh'; const dp=0;
     const card=document.createElement('div'); card.className='card';
     card.innerHTML=`<div class="card-head"><div><h2>${isW?'💧 Water':'⚡ Electricity'} — Unit by Unit</h2>
       <div class="sub"><span style="color:var(--blue)">Blue = ${dA.label}</span> &nbsp;·&nbsp; <span style="color:var(--orange)">Orange = ${dB.label}</span></div></div></div>`;
@@ -1323,10 +1432,8 @@ function renderCmpResults(){
     const maxUnits=Math.max(dA[type].length,dB[type].length);
     for(let i=0;i<maxUnits;i++){
       const rA=dA[type][i],rB=dB[type][i];
-      const oA=rA?parseFloat(rA.opening):NaN,cA=rA?parseFloat(rA.closing):NaN;
-      const oB=rB?parseFloat(rB.opening):NaN,cB=rB?parseFloat(rB.closing):NaN;
-      const uA=(!isNaN(oA)&&!isNaN(cA)&&cA>=oA)?cA-oA:null;
-      const uB=(!isNaN(oB)&&!isNaN(cB)&&cB>=oB)?cB-oB:null;
+      const uA=rA?getUsage(type, rA.opening, rA.closing):null;
+      const uB=rB?getUsage(type, rB.opening, rB.closing):null;
       const chA=uA!==null?uA*rateA:null;
       const chB=uB!==null?uB*rateB:null;
       const dU=uA!==null&&uB!==null?uB-uA:null;
@@ -1469,14 +1576,14 @@ function renderDashboard(){
   const ig=document.createElement('div'); ig.className='ins-grid';
 
   const wTop=[]; keys.forEach(key=>{months[key].water.forEach(r=>{
-    const o=parseFloat(r.opening),c=parseFloat(r.closing);
-    if(!isNaN(o)&&!isNaN(c)&&c>=o)wTop.push({unit:r.unit,usage:c-o,month:months[key].label});
+    const usage=getUsage('water', r.opening, r.closing);
+    if(usage!==null)wTop.push({unit:r.unit,usage,month:months[key].label});
   });});
   wTop.sort((a,b)=>b.usage-a.usage);
   const ic1=document.createElement('div'); ic1.className='ins-card';
   ic1.innerHTML=`<h4>💧 Top 5 Water Consumers</h4>${wTop.slice(0,5).map(u=>
     `<div class="ir"><span class="irlbl">Unit ${u.unit} <span style="font-size:.63rem;color:var(--muted)">${u.month}</span></span>
-    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(4)} kl</span></div>`
+    <span class="irv ${u.usage>20?'amber':''}">${u.usage.toFixed(0)} kl</span></div>`
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic1);
 
   const eTop=[]; keys.forEach(key=>{months[key].elec.forEach(r=>{
@@ -1491,15 +1598,15 @@ function renderDashboard(){
   ).join('')||'<div class="no-data">No data</div>'}`; ig.appendChild(ic2);
 
   const leakList=[]; keys.forEach(key=>{months[key].water.forEach(r=>{
-    if(r.flagLeak){const o=parseFloat(r.opening),c=parseFloat(r.closing);
-      leakList.push({unit:r.unit,usage:(!isNaN(o)&&!isNaN(c)&&c>=o)?c-o:null,month:months[key].label,notes:r.notes});}
+    if(r.flagLeak){
+      leakList.push({unit:r.unit,usage:getUsage('water', r.opening, r.closing),month:months[key].label,notes:r.notes});}
   });});
   const ic3=document.createElement('div'); ic3.className='ins-card';
   ic3.innerHTML=`<h4>🔴 All Flagged Problems</h4>
     ${leakList.length?leakList.map(l=>`<div class="leak-item">
       <div><span class="li-u">Unit ${l.unit}</span><br>
         <span class="li-m">${l.month} · ${l.notes||'Possible leak'}</span></div>
-      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?l.usage.toFixed(4)+' kl':'—'}</span>
+      <span style="font-family:var(--mono);font-size:.74rem">${l.usage!==null?l.usage.toFixed(0)+' kl':'—'}</span>
     </div>`).join(''):'<div class="no-data">No problems flagged 👍</div>'}`; ig.appendChild(ic3);
 
   const ic4=document.createElement('div'); ic4.className='ins-card';
@@ -1543,23 +1650,43 @@ let propSettings={
 const PROP_STORE='propSettings';
 
 function savePropToDB(){
-  if(!db)return;
-  db.transaction(PROP_STORE,'readwrite').objectStore(PROP_STORE).put({key:'main',...propSettings});
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
+  const rec={
+    id:1,
+    complex:propSettings.complex||'',
+    addr1:propSettings.addr1||'',
+    addr2:propSettings.addr2||'',
+    contact:propSettings.contact||'',
+    email:propSettings.email||'',
+    phone:propSettings.phone||'',
+    bank:propSettings.bank||'',
+    acc_no:propSettings.accNo||'',
+    branch:propSettings.branch||'',
+    acc_type:propSettings.accType||'',
+    vat:propSettings.vat||''
+  };
+  sbFetch('prop_settings','', 'POST', rec).catch(()=>showToast('Failed to save property settings','#C00000'));
 }
 
 async function loadPropFromDB(){
-  return new Promise((res)=>{
-    if(!db){res();return;}
-    const req=db.transaction(PROP_STORE,'readonly').objectStore(PROP_STORE).get('main');
-    req.onsuccess=e=>{
-      if(e.target.result){
-        const {key,...data}=e.target.result;
-        propSettings={...propSettings,...data};
-      }
-      res();
+  const rows=await sbFetch('prop_settings','?id=eq.1');
+  if(rows&&rows.length){
+    const r=rows[0];
+    propSettings={
+      ...propSettings,
+      complex:r.complex||'',
+      addr1:r.addr1||'',
+      addr2:r.addr2||'',
+      contact:r.contact||'',
+      email:r.email||'',
+      phone:r.phone||'',
+      bank:r.bank||'',
+      accNo:r.acc_no||'',
+      branch:r.branch||'',
+      accType:r.acc_type||'',
+      vat:r.vat||''
     };
-    req.onerror=()=>res();
-  });
+  }
 }
 
 function ps(k){return propSettings[k]||'';}
@@ -1703,7 +1830,7 @@ function invData(key,unitNum){
   const d=months[key];
   const wRow=d.water.find(r=>r.unit===unitNum)||{};
   const eRow=d.elec.find(r=>r.unit===unitNum)||{};
-  const wO=parseFloat(wRow.opening),wC=parseFloat(wRow.closing);
+  const wO=getReadingNumber('water', wRow.opening),wC=getReadingNumber('water', wRow.closing);
   const eO=parseFloat(eRow.opening),eC=parseFloat(eRow.closing);
   const wUsage=(!isNaN(wO)&&!isNaN(wC)&&wC>=wO)?wC-wO:0;
   const eUsage=(!isNaN(eO)&&!isNaN(eC)&&eC>=eO)?eC-eO:0;
@@ -1788,7 +1915,7 @@ function buildInvoiceHTML(key,unitNum){
         <div class="unit">Unit ${unitNum} &nbsp;|&nbsp; ${complexName}</div>
       </div>
       <div class="chips">
-        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(4)} kl</div></div>
+        <div class="chip" style="background:#2E75B6"><div class="cl">Water Usage</div><div class="cv">${wUsage.toFixed(0)} kl</div></div>
         <div class="chip" style="background:#C55A11"><div class="cl">Electricity Usage</div><div class="cv">${eUsage.toFixed(0)} kWh</div></div>
         <div class="chip" style="background:#1F3864"><div class="cl">Total Due</div><div class="cv">R${fmt(total)}</div></div>
       </div>
@@ -1799,9 +1926,9 @@ function buildInvoiceHTML(key,unitNum){
         <tbody>
           <tr>
             <td>Water Consumption</td>
-            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(4):'--'}</td>
-            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(4):'--'}</td>
-            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(4)} kl</td>
+            <td style="text-align:right">${!isNaN(wO)?wO.toFixed(0):'--'}</td>
+            <td style="text-align:right">${!isNaN(wC)?wC.toFixed(0):'--'}</td>
+            <td style="text-align:right;color:#2E75B6">${wUsage.toFixed(0)} kl</td>
             <td style="text-align:right">R${d.waterRate}/kl</td>
             <td style="text-align:right;font-weight:700">R${fmt(wCharge)}</td>
           </tr>
@@ -1891,7 +2018,7 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
     doc.setFont('helvetica','bold'); doc.setFontSize(9);
     doc.text(value,lx+3,ly+5);
   }
-  chip(15,y,'WATER USAGE',wUsage.toFixed(4)+' kl',46,117,182);
+  chip(15,y,'WATER USAGE',wUsage.toFixed(0)+' kl',46,117,182);
   chip(70,y,'ELECTRICITY',eUsage.toFixed(0)+' kWh',197,90,17);
   chip(125,y,'TOTAL DUE','R'+fmt(total),31,56,100);
   y+=20;
@@ -1924,8 +2051,8 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
   }
 
   tRow('Water Consumption',
-    !isNaN(wO)?wO.toFixed(4):'--', !isNaN(wC)?wC.toFixed(4):'--',
-    wUsage.toFixed(4)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
+    !isNaN(wO)?wO.toFixed(0):'--', !isNaN(wC)?wC.toFixed(0):'--',
+    wUsage.toFixed(0)+' kl','R'+d.waterRate+'/kl',fmt(wCharge),false);
   tRow('Electricity Consumption',
     !isNaN(eO)?eO.toFixed(0):'--', !isNaN(eC)?eC.toFixed(0):'--',
     eUsage.toFixed(0)+' kWh','R'+d.elecRate+'/kWh',fmt(eCharge),true);
@@ -2008,7 +2135,7 @@ function renderAdminStatus(){
     </div>
     <div style="margin-top:.85rem;font-size:.75rem;color:var(--muted)">
       Months: ${keys.map(k=>months[k].label).join(', ')||'None'}<br>
-      Storage: IndexedDB (${db?'Connected':'Unavailable'}) · Browser: ${navigator.userAgent.split(' ').slice(-1)[0]}
+      Storage: Supabase (${USE_SUPABASE_DATA?'Connected':'Not Configured'}) · Browser: ${navigator.userAgent.split(' ').slice(-1)[0]}
     </div>`;
 }
 
@@ -2071,15 +2198,15 @@ function exportExcel(){
       const headers=['Unit Number','Start Date','End Date','Opening Meter Reading','Unit',
         'Closing Meter Reading','Unit.1','Usage','Notes','Charge','Rate'];
       const rows=d[type].map(r=>{
-        const o=parseFloat(r.opening),c=parseFloat(r.closing);
-        const u=(!isNaN(o)&&!isNaN(c)&&c>=o)?+(c-o).toFixed(4):null;
+        const o=isW?getReadingNumber('water', r.opening):parseFloat(r.opening),c=isW?getReadingNumber('water', r.closing):parseFloat(r.closing);
+        const u=(!isNaN(o)&&!isNaN(c)&&c>=o)?(isW?Math.round(c-o):+(c-o).toFixed(0)):null;
         const ch=u!==null?+(u*rate).toFixed(2):null;
         return [r.unit,start,end,isNaN(o)?null:o,unit,isNaN(c)?null:c,unit,
           u,isW&&r.flagLeak?'Possible leak':(r.notes||null),ch,rate];
       });
       const tU=rows.reduce((s,r)=>s+(r[7]||0),0);
       const tC=rows.reduce((s,r)=>s+(r[9]||0),0);
-      rows.push(['Total',null,null,null,null,null,null,+tU.toFixed(4),null,+tC.toFixed(2),null]);
+      rows.push(['Total',null,null,null,null,null,null,+tU.toFixed(0),null,+tC.toFixed(2),null]);
       const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
       ws['!cols']=[12,14,14,22,8,22,8,12,18,14,12].map(w=>({wch:w}));
       XLSX.utils.book_append_sheet(wb,ws,`${short}_${isW?'Water':'Elec'}`.substring(0,31));
@@ -2092,7 +2219,7 @@ function exportExcel(){
       ['','Water','Electricity'],
       ['Municipal Usage Billed',b.waterUsage||0,b.elecUsage||0],
       ['Municipal Amount Billed (R)',wM,eM],
-      ['Tenant Usage Collected',+wT.usage.toFixed(4),+eT.usage.toFixed(0)],
+      ['Tenant Usage Collected',+wT.usage.toFixed(0),+eT.usage.toFixed(0)],
       ['Tenant Charge Collected (R)',+wT.charge.toFixed(2),+eT.charge.toFixed(2)],
       ['Recovery Difference (R)',+(wT.charge-wM).toFixed(2),+(eT.charge-eM).toFixed(2)],
       ['Over / Under Recovery',wT.charge>=wM?'Over-Recovery':'Under-Recovery',eT.charge>=eM?'Over-Recovery':'Under-Recovery'],
@@ -2120,6 +2247,13 @@ function showToast(msg,color='var(--green)'){
 const USER_STORE='users';
 let currentUser=null; // {username, name, role}
 
+function toSbUser(u){
+  return {username:u.username,name:u.name,role:u.role,hash:u.hash,last_login:u.lastLogin||null};
+}
+function fromSbUser(r){
+  return {username:r.username,name:r.name,role:r.role,hash:r.hash,lastLogin:r.last_login||null};
+}
+
 // Simple hash — SHA-256 via Web Crypto
 async function hashPwd(pwd){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
@@ -2132,26 +2266,32 @@ const DEFAULT_ADMIN={username:'admin',name:'Administrator',role:'admin',
   lastLogin:null};
 
 // ── DB helpers for users store ──
-function dbSaveUser(u){
-  if(!db)return;
-  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).put(u);
+async function dbSaveUser(u){
+  if(!USE_SUPABASE_USERS) throw new Error('Supabase user store is not configured.');
+  await sbFetch('app_users', '', 'POST', toSbUser(u));
 }
-function dbDeleteUser(username){
-  if(!db)return;
-  db.transaction(USER_STORE,'readwrite').objectStore(USER_STORE).delete(username);
+async function dbDeleteUser(username){
+  if(!USE_SUPABASE_USERS) throw new Error('Supabase user store is not configured.');
+  await sbFetch('app_users', `?username=eq.${encodeURIComponent(username)}`, 'DELETE');
 }
 function dbGetAllUsers(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(USER_STORE,'readonly').objectStore(USER_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
+  return new Promise(async (res,rej)=>{
+    if(!USE_SUPABASE_USERS){rej(new Error('Supabase user store is not configured.'));return;}
+    try{
+      const rows=await sbFetch('app_users', '?select=*&order=username.asc');
+      res(Array.isArray(rows)?rows.map(fromSbUser):[]);
+    }catch(err){
+      rej(err);
+    }
   });
 }
 
 // ── Session (sessionStorage — clears on tab close) ──
 function saveSession(user){
   sessionStorage.setItem('mra_session',JSON.stringify({username:user.username,name:user.name,role:user.role}));
+}
+function normalizeUsername(value){
+  return String(value||'').trim().toLowerCase();
 }
 function loadSession(){
   try{ return JSON.parse(sessionStorage.getItem('mra_session')); }catch{return null;}
@@ -2162,14 +2302,25 @@ function clearSession(){
 
 // ── Login flow ──
 async function doLogin(){
-  const username=document.getElementById('authUser').value.trim().toLowerCase();
+  const username=normalizeUsername(document.getElementById('authUser').value);
   const password=document.getElementById('authPass').value;
   const errEl=document.getElementById('authError');
   errEl.style.display='none';
   if(!username||!password){errEl.textContent='Please enter username and password.';errEl.style.display='block';return;}
 
-  const users=await dbGetAllUsers();
-  const user=users.find(u=>u.username===username);
+  let users=[];
+  try{
+    users=await dbGetAllUsers();
+  }catch{
+    errEl.textContent='User database unavailable. Check Supabase connection.';
+    errEl.style.display='block';
+    return;
+  }
+  const usernameLocal=username.includes('@')?username.split('@')[0]:username;
+  const user=users.find(u=>{
+    const stored=normalizeUsername(u.username);
+    return stored===username||stored===usernameLocal;
+  });
   if(!user){errEl.textContent='Incorrect username or password.';errEl.style.display='block';return;}
 
   const hash=await hashPwd(password);
@@ -2177,10 +2328,58 @@ async function doLogin(){
 
   // Success
   user.lastLogin=new Date().toISOString();
-  dbSaveUser(user);
+  await dbSaveUser(user);
   currentUser={username:user.username,name:user.name,role:user.role};
   saveSession(currentUser);
   applyAuth();
+}
+
+async function createTestUserFromLogin(){
+  const msgEl=document.getElementById('authCreateMsg');
+  const userEl=document.getElementById('authCreateUser');
+  const nameEl=document.getElementById('authCreateName');
+  const passEl=document.getElementById('authCreatePass');
+  const roleEl=document.getElementById('authCreateRole');
+
+  const username=normalizeUsername(userEl?.value);
+  const password=passEl?.value||'';
+  const name=(nameEl?.value||'').trim()||username;
+  const role=(roleEl?.value||'readonly').trim();
+  const setMsg=(text,isOk)=>{
+    if(!msgEl)return;
+    msgEl.textContent=text;
+    msgEl.className='auth-mini-msg '+(isOk?'ok':'err');
+    msgEl.style.display='block';
+  };
+
+  if(!username||!password){
+    setMsg('Enter at least a username and password.',false);
+    return;
+  }
+
+  let users=[];
+  try{
+    users=await dbGetAllUsers();
+  }catch{
+    setMsg('User database unavailable. Configure Supabase first.',false);
+    return;
+  }
+  if(users.find(u=>normalizeUsername(u.username)===username)){
+    setMsg('That username already exists.',false);
+    return;
+  }
+
+  const hash=await hashPwd(password);
+  await dbSaveUser({username,name,role,hash,lastLogin:null});
+
+  if(userEl) userEl.value='';
+  if(nameEl) nameEl.value='';
+  if(passEl) passEl.value='';
+  if(roleEl) roleEl.value='readonly';
+
+  document.getElementById('authUser').value=username;
+  document.getElementById('authPass').value=password;
+  setMsg('Test user created and synced to app_users.',true);
 }
 
 function doLogout(){
@@ -2246,7 +2445,12 @@ Click OK to sign out.`))return;
 async function renderUMTable(){
   const tbody=document.getElementById('umBody');
   if(!tbody)return;
-  const users=await dbGetAllUsers();
+  let users=[];
+  try{ users=await dbGetAllUsers(); }
+  catch{
+    tbody.innerHTML='<tr><td colspan="5" style="padding:1rem;color:var(--red)">Supabase user store unavailable.</td></tr>';
+    return;
+  }
   tbody.innerHTML=users.map(u=>`
     <tr>
       <td style="font-family:var(--mono);font-weight:600">${u.username}</td>
@@ -2261,15 +2465,17 @@ async function renderUMTable(){
 }
 
 async function addUser(){
-  const username=document.getElementById('umNewUser').value.trim().toLowerCase();
+  const username=normalizeUsername(document.getElementById('umNewUser').value);
   const name=document.getElementById('umNewName').value.trim();
   const password=document.getElementById('umNewPass').value;
   const role=document.getElementById('umNewRole').value;
   if(!username||!name||!password){showToast('Fill in all fields','#C55A11');return;}
-  const users=await dbGetAllUsers();
-  if(users.find(u=>u.username===username)){showToast('Username already exists','#C55A11');return;}
+  let users=[];
+  try{ users=await dbGetAllUsers(); }
+  catch{ showToast('Supabase user store unavailable','#C00000'); return; }
+  if(users.find(u=>normalizeUsername(u.username)===username)){showToast('Username already exists','#C55A11');return;}
   const hash=await hashPwd(password);
-  dbSaveUser({username,name,role,hash,lastLogin:null});
+  await dbSaveUser({username,name,role,hash,lastLogin:null});
   document.getElementById('umNewUser').value='';
   document.getElementById('umNewName').value='';
   document.getElementById('umNewPass').value='';
@@ -2280,17 +2486,20 @@ async function addUser(){
 async function resetPassword(username){
   const newPwd=prompt('Enter new password for '+username+':');
   if(!newPwd)return;
-  const users=await dbGetAllUsers();
+  let users=[];
+  try{ users=await dbGetAllUsers(); }
+  catch{ showToast('Supabase user store unavailable','#C00000'); return; }
   const user=users.find(u=>u.username===username);
   if(!user)return;
   user.hash=await hashPwd(newPwd);
-  dbSaveUser(user);
+  await dbSaveUser(user);
   showToast('Password reset for '+username);
 }
 
 async function deleteUser(username){
   if(!confirm('Remove user "'+username+'"? This cannot be undone.'))return;
-  dbDeleteUser(username);
+  try{ await dbDeleteUser(username); }
+  catch{ showToast('Supabase user store unavailable','#C00000'); return; }
   showToast('User removed','#C55A11');
   setTimeout(renderUMTable,200);
 }
@@ -2327,10 +2536,10 @@ function syncMobileNav(id){
 function applyMobileNavRoles(){
   if(!currentUser)return;
   const allowed={
-    admin:['data-entry','billing','compare','dashboard','invoices','admin'],
-    entry:['data-entry','compare','dashboard'],
-    billing:['data-entry','billing','compare','dashboard','invoices'],
-    readonly:['data-entry','compare','dashboard']
+     admin:['data-entry','units','billing','dashboard','invoices','admin'],
+     entry:['data-entry','units','billing','dashboard'],
+     billing:['data-entry','units','billing','dashboard','invoices'],
+     readonly:['data-entry','units','billing','dashboard']
   }[currentUser.role]||[];
   document.querySelectorAll('.mob-nav-btn').forEach(btn=>{
     const page=btn.getAttribute('data-page');
@@ -2383,20 +2592,27 @@ let units={}; // key: unitNum (string) → {unit,first,last,email,phone,notes}
 let editingUnit=null;
 
 function dbSaveUnit(u){
-  if(!db)return;
-  db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).put(u);
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
+  const rec={
+    unit:parseInt(u.unit),
+    first:u.first||'',
+    last:u.last||'',
+    email:u.email||'',
+    phone:u.phone||'',
+    first2:u.first2||'',
+    last2:u.last2||'',
+    email2:u.email2||'',
+    phone2:u.phone2||'',
+    notes:u.notes||''
+  };
+  sbFetch('unit_owners','', 'POST', rec).catch(()=>showToast('Failed to save unit owner','#C00000'));
 }
 function dbDeleteUnit(unitNum){
-  if(!db)return;
-  db.transaction(UNITS_STORE,'readwrite').objectStore(UNITS_STORE).delete(String(unitNum));
+  if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
+  sbFetch('unit_owners',`?unit=eq.${encodeURIComponent(unitNum)}`,'DELETE').catch(()=>showToast('Failed to delete unit owner','#C00000'));
 }
 function dbLoadAllUnits(){
-  return new Promise(res=>{
-    if(!db){res([]);return;}
-    const req=db.transaction(UNITS_STORE,'readonly').objectStore(UNITS_STORE).getAll();
-    req.onsuccess=e=>res(e.target.result||[]);
-    req.onerror=()=>res([]);
-  });
+  return sbFetch('unit_owners','?select=*&order=unit.asc').then(rows=>rows||[]);
 }
 
 async function loadUnitsFromDB(){
@@ -2493,14 +2709,13 @@ function clearUnitForm(){
 
 function exportUnitsExcel(){
   const wb=XLSX.utils.book_new();
-  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','Notes'];
+  const headers=['Unit Number','First Name','Surname','Full Name','Email','Phone','First Name 2','Surname 2','Email 2','Phone 2','Notes'];
   const rows=Object.values(units).sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(u=>[
-    u.unit, u.first||'', u.last||'',
-    [u.first,u.last].filter(Boolean).join(' ')||'',
-    u.email||'', u.phone||'', u.notes||''
+    u.unit,u.first||'',u.last||'',[u.first,u.last].filter(Boolean).join(' ')||'',
+    u.email||'',u.phone||'',u.first2||'',u.last2||'',u.email2||'',u.phone2||'',u.notes||''
   ]);
   const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[8,14,14,20,28,16,20].map(w=>({wch:w}));
+  ws['!cols']=[8,14,14,20,28,16,14,14,28,16,20].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'Unit Directory');
   XLSX.writeFile(wb,'Unit_Directory_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('Unit directory exported');
@@ -2738,7 +2953,7 @@ Billing Period: ${d.label}
 Due Date: ${fmtDate(dueDate)}
 
 CHARGES SUMMARY
-Water Usage: ${wUsage.toFixed(4)} kl @ R${d.waterRate}/kl = R${(wCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
+Water Usage: ${wUsage.toFixed(0)} kl @ R${d.waterRate}/kl = R${(wCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
 Electricity Usage: ${eUsage.toFixed(0)} kWh @ R${d.elecRate}/kWh = R${(eCharge).toLocaleString('en-ZA',{minimumFractionDigits:2})}
 Total Due: R${total.toLocaleString('en-ZA',{minimumFractionDigits:2})}
 
@@ -2772,8 +2987,8 @@ ${ps('phone')||''}`;
     <h2>Utility Meter Readings</h2>
     <p class="auth-sub" id="authComplexSub">Please sign in to continue</p>
     <div class="auth-field">
-      <label>Username</label>
-      <input type="text" id="authUser" placeholder="Enter your username" autocomplete="username"
+      <label>Username or Email</label>
+      <input type="text" id="authUser" placeholder="Enter your username or email" autocomplete="username"
         onkeydown="if(event.key==='Enter')document.getElementById('authPass').focus()">
     </div>
     <div class="auth-field">
@@ -2783,6 +2998,25 @@ ${ps('phone')||''}`;
     </div>
     <button class="auth-btn" onclick="doLogin()">Sign In</button>
     <div class="auth-error" id="authError">Incorrect username or password</div>
+
+    <details class="auth-test">
+      <summary>Create Test User</summary>
+      <div class="auth-test-body">
+        <div class="auth-mini-grid">
+          <input type="text" id="authCreateUser" placeholder="Username or email">
+          <input type="text" id="authCreateName" placeholder="Display name (optional)">
+          <input type="password" id="authCreatePass" placeholder="Password">
+          <select id="authCreateRole">
+            <option value="readonly">Read Only</option>
+            <option value="entry">Data Entry</option>
+            <option value="billing">Billing</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="auth-mini-btn" onclick="createTestUserFromLogin()">Create Test User</button>
+        <div id="authCreateMsg" class="auth-mini-msg"></div>
+      </div>
+    </details>
   </div>
   <div class="auth-footer">Mogale City Complex &nbsp;|&nbsp; Utility Management System</div>
 </div>
