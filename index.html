@@ -720,6 +720,39 @@ input[type=file]{display:none}
     </div>
   </div>
 
+  <div class="section-hdr">GitHub Backup</div>
+  <div class="admin-card" style="max-width:900px">
+    <h3>☁️ GitHub Backup Settings</h3>
+    <p>Configure a GitHub repository target for JSON backups. Token is stored in your browser local storage for this device.</p>
+    <div class="inv-grid" style="margin-bottom:1rem">
+      <div class="inv-field" style="grid-column:1/-1;display:flex;align-items:center;gap:.6rem">
+        <input type="checkbox" id="ghEnabled" style="width:auto;transform:scale(1.1)">
+        <label for="ghEnabled" style="margin:0;font-size:.78rem;letter-spacing:0;text-transform:none;font-weight:600;color:var(--navy)">Enable GitHub backups</label>
+      </div>
+      <div class="inv-field"><label>GitHub Owner</label><input type="text" id="ghOwner" placeholder="e.g. your-org"></div>
+      <div class="inv-field"><label>Repository</label><input type="text" id="ghRepo" placeholder="e.g. utility-backups"></div>
+      <div class="inv-field"><label>Branch</label><input type="text" id="ghBranch" placeholder="main"></div>
+      <div class="inv-field"><label>File Path</label><input type="text" id="ghPath" placeholder="backups/mra_backup.json"></div>
+      <div class="inv-field" style="grid-column:1/-1"><label>Personal Access Token (repo scope)</label><input type="password" id="ghToken" placeholder="ghp_..."></div>
+      <div class="inv-field" style="grid-column:1/-1;display:flex;align-items:center;gap:.6rem">
+        <input type="checkbox" id="ghAuto" style="width:auto;transform:scale(1.1)">
+        <label for="ghAuto" style="margin:0;font-size:.78rem;letter-spacing:0;text-transform:none;font-weight:600;color:var(--navy)">Auto backup after data changes</label>
+      </div>
+      <div class="inv-field" style="grid-column:1/-1;display:flex;align-items:center;gap:.6rem">
+        <input type="checkbox" id="ghTimestamp" style="width:auto;transform:scale(1.1)">
+        <label for="ghTimestamp" style="margin:0;font-size:.78rem;letter-spacing:0;text-transform:none;font-weight:600;color:var(--navy)">Use timestamped backup filenames</label>
+      </div>
+      <div class="inv-field" style="grid-column:1/-1"><label>Restore File Path (optional override)</label><input type="text" id="ghRestorePath" placeholder="Leave blank to restore from File Path"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-exp" onclick="saveGithubBackupSettings()">Save Backup Settings</button>
+      <button class="btn-exp blue" onclick="testGithubBackupConnection()">Test Connection</button>
+      <button class="btn-exp orange" onclick="runGithubBackupNow()">Backup Now</button>
+      <button class="btn-ghost" onclick="restoreGithubBackup()">Restore From GitHub</button>
+    </div>
+    <div id="ghBackupStatus" style="margin-top:.85rem;font-size:.76rem;color:var(--muted)">GitHub backup is not configured.</div>
+  </div>
+
   <div class="section-hdr">Database Status</div>
   <div class="admin-card" id="adminStatus" style="max-width:600px">
     <h3>&#x2139;&#xFE0F; Current Status</h3>
@@ -866,10 +899,12 @@ function dbSave(key){
     billing:d.billing
   };
   sbFetch('months','', 'POST', rec).catch(()=>showToast('Failed to save month to Supabase','#C00000'));
+  scheduleGithubAutoBackup('month-save');
 }
 function dbDelete(key){
   if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
   sbFetch('months',`?key=eq.${encodeURIComponent(key)}`,'DELETE').catch(()=>showToast('Failed to delete month from Supabase','#C00000'));
+  scheduleGithubAutoBackup('month-delete');
 }
 async function dbLoadAll(){
   const rows=await sbFetch('months','?select=*&order=key.asc');
@@ -926,6 +961,7 @@ async function init(){
     document.getElementById('dbStatus').style.color='#F5AAAA';
   }
   populateInvMonths();
+  loadGithubBackupSettings();
 
   // Check for existing session
   const session=loadSession();
@@ -1670,6 +1706,7 @@ function savePropToDB(){
     vat:propSettings.vat||''
   };
   sbFetch('prop_settings','', 'POST', rec).catch(()=>showToast('Failed to save property settings','#C00000'));
+  scheduleGithubAutoBackup('property-save');
 }
 
 async function loadPropFromDB(){
@@ -2108,9 +2145,290 @@ function buildInvoicePDF(key,unitNum,autoOpen=true){
   doc.save(fname);
   if(autoOpen) showToast('Invoice saved: '+fname);
 }
+
+const GH_BACKUP_KEY='mra_github_backup_settings';
+let ghBackupTimer=null;
+let ghBackupState={lastAt:'',lastOk:null,lastMessage:''};
+let ghBackupSuppressAuto=false;
+
+function getGithubBackupSettings(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(GH_BACKUP_KEY)||'{}');
+    return {
+      enabled:Boolean(parsed.enabled),
+      owner:String(parsed.owner||'').trim(),
+      repo:String(parsed.repo||'').trim(),
+      branch:String(parsed.branch||'main').trim()||'main',
+      path:String(parsed.path||'backups/mra_backup.json').trim()||'backups/mra_backup.json',
+      token:String(parsed.token||'').trim(),
+      autoBackup:Boolean(parsed.autoBackup),
+      timestamped:Boolean(parsed.timestamped)
+    };
+  }catch{
+    return {enabled:false,owner:'',repo:'',branch:'main',path:'backups/mra_backup.json',token:'',autoBackup:false,timestamped:false};
+  }
+}
+
+function setGithubBackupSettings(v){
+  localStorage.setItem(GH_BACKUP_KEY,JSON.stringify(v));
+}
+
+function loadGithubBackupSettings(){
+  const s=getGithubBackupSettings();
+  const setVal=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
+  const setChk=(id,val)=>{const el=document.getElementById(id);if(el)el.checked=Boolean(val);};
+  setChk('ghEnabled',s.enabled);
+  setVal('ghOwner',s.owner);
+  setVal('ghRepo',s.repo);
+  setVal('ghBranch',s.branch);
+  setVal('ghPath',s.path);
+  setVal('ghToken',s.token);
+  setChk('ghAuto',s.autoBackup);
+  setChk('ghTimestamp',s.timestamped);
+  renderGithubBackupStatus();
+}
+
+function saveGithubBackupSettings(){
+  const getVal=id=>(document.getElementById(id)?.value||'').trim();
+  const getChk=id=>Boolean(document.getElementById(id)?.checked);
+  const next={
+    enabled:getChk('ghEnabled'),
+    owner:getVal('ghOwner'),
+    repo:getVal('ghRepo'),
+    branch:getVal('ghBranch')||'main',
+    path:getVal('ghPath')||'backups/mra_backup.json',
+    token:getVal('ghToken'),
+    autoBackup:getChk('ghAuto'),
+    timestamped:getChk('ghTimestamp')
+  };
+  setGithubBackupSettings(next);
+  renderGithubBackupStatus();
+  showToast('GitHub backup settings saved','var(--blue)');
+}
+
+function renderGithubBackupStatus(){
+  const el=document.getElementById('ghBackupStatus');
+  if(!el)return;
+  const s=getGithubBackupSettings();
+  if(!s.enabled){
+    el.textContent='GitHub backup is disabled.';
+    return;
+  }
+  const target=s.owner&&s.repo?`${s.owner}/${s.repo}:${s.path}`:'(incomplete)';
+  const auto=s.autoBackup?'on':'off';
+  const naming=s.timestamped?'timestamped':'fixed-path';
+  const last=ghBackupState.lastAt?new Date(ghBackupState.lastAt).toLocaleString('en-ZA'):'never';
+  const msg=ghBackupState.lastMessage?` | ${ghBackupState.lastMessage}`:'';
+  const okTxt=ghBackupState.lastOk===null?'unknown':(ghBackupState.lastOk?'success':'failed');
+  el.textContent=`Target: ${target} | Auto: ${auto} | Naming: ${naming} | Last backup: ${last} (${okTxt})${msg}`;
+}
+
+function githubBackupPayload(){
+  return {
+    generatedAt:new Date().toISOString(),
+    app:'meter-readings-app',
+    months,
+    units,
+    propSettings
+  };
+}
+
+function toBase64Utf8(text){
+  const bytes=new TextEncoder().encode(text);
+  let binary='';
+  bytes.forEach(b=>{binary+=String.fromCharCode(b);});
+  return btoa(binary);
+}
+
+function githubContentUrl(owner,repo,path){
+  const encPath=String(path||'').replace(/^\/+/,'').split('/').map(encodeURIComponent).join('/');
+  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encPath}`;
+}
+
+function backupPathWithTimestamp(path){
+  const raw=String(path||'backups/mra_backup.json').trim().replace(/^\/+/,'');
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const stamp=`${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const idx=raw.lastIndexOf('.');
+  if(idx<=0) return `${raw}_${stamp}`;
+  return `${raw.slice(0,idx)}_${stamp}${raw.slice(idx)}`;
+}
+
+function fromBase64Utf8(b64){
+  const clean=String(b64||'').replace(/\n/g,'');
+  const binary=atob(clean);
+  const bytes=Uint8Array.from(binary,ch=>ch.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+async function uploadBackupToGithub(reason='manual'){
+  const s=getGithubBackupSettings();
+  if(!s.enabled) throw new Error('GitHub backup is disabled.');
+  if(!s.owner||!s.repo||!s.path||!s.token) throw new Error('Backup settings are incomplete.');
+
+  const resolvedPath=s.timestamped?backupPathWithTimestamp(s.path):s.path;
+  const url=githubContentUrl(s.owner,s.repo,resolvedPath);
+  let sha=null;
+  if(!s.timestamped){
+    const getRes=await fetch(`${url}?ref=${encodeURIComponent(s.branch)}`,{
+      headers:{Authorization:`Bearer ${s.token}`,Accept:'application/vnd.github+json'}
+    });
+    if(getRes.ok){
+      const info=await getRes.json();
+      sha=info.sha||null;
+    }else if(getRes.status!==404){
+      const errText=await getRes.text();
+      throw new Error(`GitHub read failed (${getRes.status}): ${errText.slice(0,120)}`);
+    }
+  }
+
+  const content=JSON.stringify(githubBackupPayload(),null,2);
+  const body={
+    message:`MRA backup ${new Date().toISOString()} (${reason})`,
+    content:toBase64Utf8(content),
+    branch:s.branch
+  };
+  if(sha) body.sha=sha;
+
+  const putRes=await fetch(url,{
+    method:'PUT',
+    headers:{
+      Authorization:`Bearer ${s.token}`,
+      Accept:'application/vnd.github+json',
+      'Content-Type':'application/json'
+    },
+    body:JSON.stringify(body)
+  });
+  if(!putRes.ok){
+    const errText=await putRes.text();
+    throw new Error(`GitHub upload failed (${putRes.status}): ${errText.slice(0,160)}`);
+  }
+  return {path:resolvedPath};
+}
+
+function scheduleGithubAutoBackup(reason='data-change'){
+  if(ghBackupSuppressAuto)return;
+  const s=getGithubBackupSettings();
+  if(!s.enabled||!s.autoBackup)return;
+  clearTimeout(ghBackupTimer);
+  ghBackupTimer=setTimeout(async()=>{
+    try{
+      const result=await uploadBackupToGithub(reason);
+      ghBackupState={lastAt:new Date().toISOString(),lastOk:true,lastMessage:`auto backup complete (${result.path})`};
+    }catch(err){
+      ghBackupState={lastAt:new Date().toISOString(),lastOk:false,lastMessage:err.message||'auto backup failed'};
+    }
+    renderGithubBackupStatus();
+  },3000);
+}
+
+async function runGithubBackupNow(){
+  try{
+    const result=await uploadBackupToGithub('manual');
+    ghBackupState={lastAt:new Date().toISOString(),lastOk:true,lastMessage:`manual backup complete (${result.path})`};
+    showToast('GitHub backup completed: '+result.path,'var(--green)');
+  }catch(err){
+    ghBackupState={lastAt:new Date().toISOString(),lastOk:false,lastMessage:err.message||'manual backup failed'};
+    showToast('GitHub backup failed: '+(err.message||'Unknown error'),'#C00000');
+  }
+  renderGithubBackupStatus();
+}
+
+async function restoreGithubBackup(){
+  const s=getGithubBackupSettings();
+  const restorePath=(document.getElementById('ghRestorePath')?.value||'').trim()||s.path;
+  if(!s.owner||!s.repo||!s.token||!restorePath){
+    showToast('Owner, repo, token, and restore path are required','#C00000');
+    return;
+  }
+  if(!confirm('Restore will replace current months, units, and property settings. Continue?'))return;
+  try{
+    const url=githubContentUrl(s.owner,s.repo,restorePath);
+    const res=await fetch(`${url}?ref=${encodeURIComponent(s.branch)}`,{
+      headers:{Authorization:`Bearer ${s.token}`,Accept:'application/vnd.github+json'}
+    });
+    if(!res.ok){
+      const errText=await res.text();
+      throw new Error(`Restore read failed (${res.status}): ${errText.slice(0,160)}`);
+    }
+    const file=await res.json();
+    const raw=fromBase64Utf8(file.content||'');
+    const payload=JSON.parse(raw);
+
+    if(!payload||typeof payload!=='object'||!payload.months||!payload.units||!payload.propSettings){
+      throw new Error('Invalid backup payload. Expected months, units, and propSettings.');
+    }
+
+    ghBackupSuppressAuto=true;
+
+    const oldMonthKeys=Object.keys(months);
+    oldMonthKeys.forEach(k=>dbDelete(k));
+    oldMonthKeys.forEach(k=>delete months[k]);
+    Object.entries(payload.months).forEach(([k,v])=>{months[k]=v; dbSave(k);});
+
+    const oldUnitKeys=Object.keys(units);
+    oldUnitKeys.forEach(k=>dbDeleteUnit(parseInt(k,10)));
+    units={};
+    if(Array.isArray(payload.units)){
+      payload.units.forEach(u=>{if(u&&u.unit) units[String(u.unit)]=u;});
+    }else{
+      Object.entries(payload.units).forEach(([k,v])=>{if(v) units[String(k)]=v;});
+    }
+    Object.values(units).forEach(u=>dbSaveUnit(u));
+
+    propSettings={...propSettings,...payload.propSettings};
+    savePropToDB();
+
+    updateHeaderComplex();
+    renderTabs();
+    const keys=Object.keys(months).sort();
+    activeKey=keys.length?keys[keys.length-1]:null;
+    if(activeKey) activateTab(activeKey);
+    else{
+      document.getElementById('activeBadge').textContent='No month selected';
+      document.getElementById('entryContent').innerHTML='<div class="empty-state"><p>No months available.</p></div>';
+    }
+    populateInvMonths();
+    renderUnitsTable();
+    renderAdminStatus();
+
+    ghBackupState={lastAt:new Date().toISOString(),lastOk:true,lastMessage:`restored from ${restorePath}`};
+    showToast('Restore completed from GitHub','var(--green)');
+  }catch(err){
+    ghBackupState={lastAt:new Date().toISOString(),lastOk:false,lastMessage:err.message||'restore failed'};
+    showToast('Restore failed: '+(err.message||'Unknown error'),'#C00000');
+  }finally{
+    ghBackupSuppressAuto=false;
+    renderGithubBackupStatus();
+  }
+}
+
+async function testGithubBackupConnection(){
+  try{
+    const s=getGithubBackupSettings();
+    if(!s.owner||!s.repo||!s.token) throw new Error('Owner, repo, and token are required.');
+    const testUrl=`https://api.github.com/repos/${encodeURIComponent(s.owner)}/${encodeURIComponent(s.repo)}`;
+    const res=await fetch(testUrl,{
+      headers:{Authorization:`Bearer ${s.token}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+    });
+    if(!res.ok){
+      const errText=await res.text();
+      throw new Error(`Connection failed (${res.status}) for ${testUrl}: ${errText.slice(0,200)}`);
+    }
+    ghBackupState={lastAt:new Date().toISOString(),lastOk:true,lastMessage:'connection test passed'};
+    showToast('GitHub connection successful','var(--green)');
+  }catch(err){
+    ghBackupState={lastAt:new Date().toISOString(),lastOk:false,lastMessage:err.message||'connection failed'};
+    showToast('GitHub test failed: '+(err.message||'Unknown error'),'#C00000');
+  }
+  renderGithubBackupStatus();
+}
+
 // ═══════════════ ADMIN ═══════════════
 function renderAdminStatus(){
   renderPropDisplayGrid();
+  renderGithubBackupStatus();
   setTimeout(renderUMTable, 50);
   const keys=Object.keys(months).sort();
   const body=document.getElementById('adminStatusBody');
@@ -2167,6 +2485,7 @@ function importDB(input){
       const keys=Object.keys(months).sort();
       if(keys.length) activateTab(keys[keys.length-1]);
       populateInvMonths(); renderAdminStatus();
+      scheduleGithubAutoBackup('import-json');
       showToast(`✓ Imported ${count} months from backup`,'var(--blue)');
     }catch(err){
       showToast('Import failed: '+err.message,'#C00000');
@@ -2185,6 +2504,7 @@ function wipeAllData(){
   document.getElementById('tabsRow').innerHTML='<div class="tabs-empty">No months yet — add one above ↑</div>';
   document.getElementById('entryContent').innerHTML='<div class="empty-state"><p>Data wiped. Add a new month to begin.</p></div>';
   populateInvMonths(); renderAdminStatus();
+  scheduleGithubAutoBackup('wipe-all');
   showToast('All data wiped','#C00000');
 }
 
@@ -2596,10 +2916,12 @@ function dbSaveUnit(u){
     notes:u.notes||''
   };
   sbFetch('unit_owners','', 'POST', rec).catch(()=>showToast('Failed to save unit owner','#C00000'));
+  scheduleGithubAutoBackup('unit-save');
 }
 function dbDeleteUnit(unitNum){
   if(!USE_SUPABASE_DATA){showToast('Supabase not configured','#C00000');return;}
   sbFetch('unit_owners',`?unit=eq.${encodeURIComponent(unitNum)}`,'DELETE').catch(()=>showToast('Failed to delete unit owner','#C00000'));
+  scheduleGithubAutoBackup('unit-delete');
 }
 function dbLoadAllUnits(){
   return sbFetch('unit_owners','?select=*&order=unit.asc').then(rows=>rows||[]);
